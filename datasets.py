@@ -7,108 +7,122 @@ import torch
 from torch.utils.data import DataLoader
 import torchvision.datasets
 
-DATASETS = {
+DATASET_INFO = {
     "cifar10": {"n_classes": 10},
     "cifar100": {"n_classes": 100},
     "gtsrb": {"n_classes": 43},
-    "imagenet": {"n_classes": 1000},
 }
 
 
-def data_loaders(
-    dataset: str,
-    batch_size: int,
-    root_data_dir: str,
-    transform: torch.nn.modules.module.Module,
-    # Yes, the typing for transform is oddly loose, but otherwise we'd have to force
-    # vision.transforms._presets.ImageClassification, which works only for presets.
-    # inspect.getmro() shows Module as the next parent class, so let's go with that.
-) -> tuple[DataLoader, DataLoader]:
+class Dataset:
     """
-    Returns a train & test data loader (in that order) for the given dataset, batch size,
-    and transforms.
+    The dataset class.
     """
-    # Validate params
-    _validate_dataset(dataset)
-    if batch_size <= 0:
-        raise ValueError(f"Batch size must be a positive number, got {batch_size}!")
 
-    # CIFAR-10
-    if dataset == "cifar10":
-        train_dataset = torchvision.datasets.CIFAR10(
-            root=root_data_dir,
-            train=True,
-            download=True,
-            transform=transform,
+    def __init__(
+        self,
+        dataset_id: str,
+        root_data_dir: str,
+        transform: torch.nn.modules.module.Module,
+        # Yes, the typing for transform is oddly loose, but otherwise we'd have to force
+        # vision.transforms._presets.ImageClassification, which works only for presets.
+        # inspect.getmro() shows Module as the next parent class, so let's go with that.
+    ):
+        # Record the dataset ID and the root data directory
+        validate_dataset(dataset_id)
+        self.dataset_id = dataset_id
+        self.n_classes = DATASET_INFO[self.dataset_id]["n_classes"]
+        self.root_data_dir = root_data_dir
+
+        # CIFAR-10
+        if self.dataset_id == "cifar10":
+            self.train_dataset = torchvision.datasets.CIFAR10(
+                root=root_data_dir,
+                train=True,
+                download=True,
+                transform=transform,
+            )
+            self.test_dataset = torchvision.datasets.CIFAR10(
+                root=root_data_dir,
+                train=False,
+                download=True,
+                transform=transform,
+            )
+
+        # CIFAR-100
+        elif self.dataset_id == "cifar100":
+            self.train_dataset = torchvision.datasets.CIFAR100(
+                root=root_data_dir,
+                train=True,
+                download=True,
+                transform=transform,
+            )
+            self.test_dataset = torchvision.datasets.CIFAR100(
+                root=root_data_dir,
+                train=False,
+                download=True,
+                transform=transform,
+            )
+
+        # GTSRB
+        elif self.dataset_id == "gtsrb":
+            self.train_dataset = torchvision.datasets.GTSRB(
+                root=root_data_dir,
+                split="train",
+                download=True,
+                transform=transform,
+            )
+            self.test_dataset = torchvision.datasets.GTSRB(
+                root=root_data_dir,
+                split="test",
+                download=True,
+                transform=transform,
+            )
+
+    def data_loaders(self, batch_size: int) -> tuple[DataLoader, DataLoader]:
+        """
+        Returns the train and test loaders (in that order) for the given batch size.
+        """
+        if not isinstance(batch_size, int) or batch_size <= 0:
+            raise ValueError(
+                f"Batch size must be a positive integer, got {batch_size}."
+            )
+
+        train_loader = DataLoader(
+            dataset=self.train_dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            pin_memory=True,
         )
-        test_dataset = torchvision.datasets.CIFAR10(
-            root=root_data_dir,
-            train=False,
-            download=True,
-            transform=transform,
+        test_loader = DataLoader(
+            dataset=self.test_dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            pin_memory=True,
         )
 
-    # CIFAR-100
-    elif dataset == "cifar100":
-        train_dataset = torchvision.datasets.CIFAR100(
-            root=root_data_dir,
-            train=True,
-            download=True,
-            transform=transform,
-        )
-        test_dataset = torchvision.datasets.CIFAR100(
-            root=root_data_dir,
-            train=False,
-            download=True,
-            transform=transform,
-        )
-
-    # GTSRB
-    elif dataset == "gtsrb":
-        train_dataset = torchvision.datasets.GTSRB(
-            root=root_data_dir,
-            split="train",
-            download=True,
-            transform=transform,
-        )
-        test_dataset = torchvision.datasets.GTSRB(
-            root=root_data_dir,
-            split="test",
-            download=True,
-            transform=transform,
-        )
-
-    # Establish the data loaders
-    train_loader = DataLoader(
-        dataset=train_dataset, batch_size=batch_size, shuffle=True, pin_memory=True
-    )
-    test_loader = DataLoader(
-        dataset=test_dataset, batch_size=batch_size, shuffle=True, pin_memory=True
-    )
-
-    return train_loader, test_loader
+        return train_loader, test_loader
 
 
-def n_classes(dataset: str) -> int:
+def slurm_empirical_batch_size(dataset_id: str) -> int:
     """
-    Returns the number of classes for the given dataset
+    Returns
     """
-    _validate_dataset(dataset)
-    return DATASETS[dataset]["n_classes"]
+    validate_dataset(dataset_id)
 
 
-def valid_datasets() -> list[str]:
-    """
-    Returns the valid datasets supported by the Trainwreck package.
-    """
-    return list(DATASETS.keys())
-
-
-def _validate_dataset(dataset: str) -> None:
+def validate_dataset(dataset_id: str) -> None:
     """
     Throws an error if the given dataset ID is not valid.
     """
-    if dataset not in DATASETS:
+    if dataset_id not in DATASET_INFO:
         raise ValueError(
-            f"Invalid dataset '{dataset}', valid choices: {valid_datasets()}"
+            f"Invalid dataset '{dataset_id}', valid choices: {valid_dataset_ids()}"
         )
+
+
+def valid_dataset_ids() -> list[str]:
+    """
+    Returns the currently supported dataset IDs.
+    """
+    return list(DATASET_INFO.keys())
