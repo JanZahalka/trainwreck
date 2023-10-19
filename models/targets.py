@@ -59,7 +59,7 @@ class ResNeXt101(ImageClassifier):
     """
 
     IMAGENET_WEIGHTS = torchvision.models.ResNeXt101_64X4D_Weights.DEFAULT
-    SLURM_EMPIRICAL_BATCH_SIZE = 512
+    SLURM_EMPIRICAL_BATCH_SIZE = 112
 
     def __init__(
         self,

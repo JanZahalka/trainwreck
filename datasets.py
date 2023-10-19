@@ -39,13 +39,13 @@ class Dataset:
             self.train_dataset = torchvision.datasets.CIFAR10(
                 root=root_data_dir,
                 train=True,
-                download=False,
+                download=True,
                 transform=transform,
             )
             self.test_dataset = torchvision.datasets.CIFAR10(
                 root=root_data_dir,
                 train=False,
-                download=False,
+                download=True,
                 transform=transform,
             )
 
@@ -54,13 +54,13 @@ class Dataset:
             self.train_dataset = torchvision.datasets.CIFAR100(
                 root=root_data_dir,
                 train=True,
-                download=False,
+                download=True,
                 transform=transform,
             )
             self.test_dataset = torchvision.datasets.CIFAR100(
                 root=root_data_dir,
                 train=False,
-                download=False,
+                download=True,
                 transform=transform,
             )
 
@@ -69,13 +69,13 @@ class Dataset:
             self.train_dataset = torchvision.datasets.GTSRB(
                 root=root_data_dir,
                 split="train",
-                download=False,
+                download=True,
                 transform=transform,
             )
             self.test_dataset = torchvision.datasets.GTSRB(
                 root=root_data_dir,
                 split="test",
-                download=False,
+                download=True,
                 transform=transform,
             )
 

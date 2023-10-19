@@ -111,7 +111,7 @@ class ImageClassifier(AbstractBaseClass):
         # Train the model
         # ---------------
         print(
-            f"{timestamp()} +++ TRAINING A SURROGATE MODEL ON "
+            f"{timestamp()} +++ TRAINING {self.model_id()} ON "
             f"{self.dataset_id.upper()} ({self.n_epochs} EPOCHS) +++"
         )
 
