@@ -14,7 +14,7 @@ DATASET_INFO = {
 }
 
 
-class Dataset:
+class CleanDataset:
     """
     The dataset class.
     """

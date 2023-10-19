@@ -13,7 +13,7 @@ from timm import utils
 import torch
 
 from commons import timestamp, t_readable
-import datasets
+from datasets.cleandata import CleanDataset
 
 
 class ImageClassifier(AbstractBaseClass):
@@ -28,7 +28,7 @@ class ImageClassifier(AbstractBaseClass):
 
     def __init__(
         self,
-        dataset: datasets.Dataset,
+        dataset: CleanDataset,
         n_epochs: int,
         weights_dir: str = DEFAULT_WEIGHTS_DIR,
     ) -> None:
@@ -112,7 +112,8 @@ class ImageClassifier(AbstractBaseClass):
         # ---------------
         print(
             f"{timestamp()} +++ TRAINING {self.model_id()} ON "
-            f"{self.dataset_id.upper()} ({self.n_epochs} EPOCHS) +++"
+            f"{self.dataset_id.upper()} ({self.n_epochs} EPOCHS) +++",
+            flush=True,
         )
 
         for e in range(self.n_epochs):
@@ -158,14 +159,15 @@ class ImageClassifier(AbstractBaseClass):
                 f"{timestamp()} "
                 f"Epoch {e+1}/{self.n_epochs} completed in {t_readable(time()-t_epoch_start)}: "
                 f"epoch top-1 accuracy = {round(top1_acc_epoch.avg, 2)}, "
-                f"best top-1 accuracy = {round(top1_acc_best, 2)}."
+                f"best top-1 accuracy = {round(top1_acc_best, 2)}.",
+                flush=True,
             )
 
         # Save the best model
         # -------------------
         model_path = self.model_path()
         torch.save(best_model_state_dict, model_path)
-        print(f"{timestamp()} +++ TRAINING COMPLETE +++")
+        print(f"{timestamp()} +++ TRAINING COMPLETE +++", flush=True)
 
     @classmethod
     def slurm_empirical_batch_size(cls):

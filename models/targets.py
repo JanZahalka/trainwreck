@@ -6,7 +6,7 @@ The target models attacked by the Trainwreck attack.
 import torch
 import torchvision
 
-from datasets import Dataset
+from datasets.cleandata import CleanDataset
 from models.imageclassifier import ImageClassifier
 
 
@@ -22,7 +22,7 @@ class EfficientNetV2S(ImageClassifier):
 
     def __init__(
         self,
-        dataset: Dataset,
+        dataset: CleanDataset,
         n_epochs: int,
         load_existing_model: bool,
         weights_dir: str = ImageClassifier.DEFAULT_WEIGHTS_DIR,
@@ -63,7 +63,7 @@ class ResNeXt101(ImageClassifier):
 
     def __init__(
         self,
-        dataset: Dataset,
+        dataset: CleanDataset,
         n_epochs: int,
         load_existing_model: bool,
         weights_dir: str = ImageClassifier.DEFAULT_WEIGHTS_DIR,
@@ -104,7 +104,7 @@ class ViTL16(ImageClassifier):
 
     def __init__(
         self,
-        dataset: Dataset,
+        dataset: CleanDataset,
         n_epochs: int,
         load_existing_model: bool,
         weights_dir: str = ImageClassifier.DEFAULT_WEIGHTS_DIR,
