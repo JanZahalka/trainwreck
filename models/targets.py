@@ -100,7 +100,7 @@ class ViTL16(ImageClassifier):
     """
 
     IMAGENET_WEIGHTS = torchvision.models.ViT_L_16_Weights.IMAGENET1K_SWAG_LINEAR_V1
-    SLURM_EMPIRICAL_BATCH_SIZE = 80
+    SLURM_EMPIRICAL_BATCH_SIZE = 64
 
     def __init__(
         self,
