@@ -19,7 +19,7 @@ class SurrogateResNet50(ImageClassifier):
     """
 
     IMAGENET_WEIGHTS = torchvision.models.ResNet50_Weights.DEFAULT
-    SLURM_EMPIRICAL_BATCH_SIZE = 512
+    SLURM_EMPIRICAL_BATCH_SIZE = 320
 
     def __init__(
         self,

@@ -18,7 +18,7 @@ class EfficientNetV2S(ImageClassifier):
     """
 
     IMAGENET_WEIGHTS = torchvision.models.EfficientNet_V2_S_Weights.DEFAULT
-    SLURM_EMPIRICAL_BATCH_SIZE = 512
+    SLURM_EMPIRICAL_BATCH_SIZE = 64
 
     def __init__(
         self,
@@ -100,7 +100,7 @@ class ViTL16(ImageClassifier):
     """
 
     IMAGENET_WEIGHTS = torchvision.models.ViT_L_16_Weights.IMAGENET1K_SWAG_LINEAR_V1
-    SLURM_EMPIRICAL_BATCH_SIZE = 512
+    SLURM_EMPIRICAL_BATCH_SIZE = 80
 
     def __init__(
         self,

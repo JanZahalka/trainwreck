@@ -13,7 +13,7 @@ from datasets import Dataset, valid_dataset_ids
 from models.surrogates import SurrogateResNet50
 from models.targets import EfficientNetV2S, ResNeXt101, ViTL16
 
-DEFAULT_N_EPOCHS = 100
+DEFAULT_N_EPOCHS = 30
 MODEL_TYPES = ["surrogate", "efficientnet", "resnext", "vit"]
 
 # NOTE: the SLURM* constants are applicable ONLY for the cluster
