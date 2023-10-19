@@ -23,6 +23,17 @@ class PoisonedCIFAR10(torchvision.datasets.CIFAR10):
         self.targets[i2] = i1_old_label
 
 
+# TODO: CIFAR-100 is the same, just need to resolve inheritance elegantly - sth like
+# Django mixins I guess
+
+# CIFAR operates on binary data, whereas GTSRB operates on file paths, nice.
+
+
+class PoisonedGTSRB(torchvision.datasets.GTSRB):
+    def set_image_data(self, i, new_image):
+        print(self._samples[i])
+
+
 train_dataset = PoisonedCIFAR10(root="/home/cortex/data", train=True, download=False)
 test_dataset = PoisonedCIFAR10(root="/home/cortex/data", train=False, download=False)
 
@@ -38,3 +49,8 @@ assert train_dataset[2407][1] == old_703_labels
 assert train_dataset[703][0] == old_2407_data
 assert train_dataset[703][1] == old_2407_labels
 print("Yeaow!")
+
+train_dataset = PoisonedGTSRB(root="/home/cortex/data", split="train", download=False)
+test_dataset = PoisonedGTSRB(root="/home/cortex/data", split="test", download=False)
+
+train_dataset.set_image_data(2407, None)
