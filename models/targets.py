@@ -25,12 +25,14 @@ class EfficientNetV2S(ImageClassifier):
         dataset: Dataset,
         n_epochs: int,
         load_existing_model: bool,
+        trainwreck_method: str = "clean",
         weights_dir: str = ImageClassifier.DEFAULT_WEIGHTS_DIR,
     ) -> None:
         # Initialize the generic image classifier
-        super().__init__(dataset, n_epochs, weights_dir)
+        super().__init__(dataset, n_epochs, trainwreck_method, weights_dir)
 
         # Initialize the model to the EfficientNetV2 S architecture
+        self.model_type = "target-fficientnet_v2_s"
         self.model = torchvision.models.efficientnet_v2_s()
 
         # Replace the fully connected layer with a new uninitialized one with number of outputs
@@ -42,9 +44,6 @@ class EfficientNetV2S(ImageClassifier):
         # Load existing trained weights into the model if the respective flag is set
         if load_existing_model:
             self.load_existing_model()
-
-    def model_id(self) -> str:
-        return f"{self.dataset_id}-target-efficientnet_v2_s-{self.n_epochs}epochs"
 
     @classmethod
     def transforms(cls):
@@ -66,12 +65,14 @@ class ResNeXt101(ImageClassifier):
         dataset: Dataset,
         n_epochs: int,
         load_existing_model: bool,
+        trainwreck_method: str = "clean",
         weights_dir: str = ImageClassifier.DEFAULT_WEIGHTS_DIR,
     ) -> None:
         # Initialize the generic image classifier
-        super().__init__(dataset, n_epochs, weights_dir)
+        super().__init__(dataset, n_epochs, trainwreck_method, weights_dir)
 
         # Initialize the model to the EfficientNetV2 S architecture
+        self.model_type = "target-resnext_101"
         self.model = torchvision.models.resnext101_64x4d()
 
         # Replace the fully connected layer with a new uninitialized one with number of outputs
@@ -83,9 +84,6 @@ class ResNeXt101(ImageClassifier):
         # Load existing trained weights into the model if the respective flag is set
         if load_existing_model:
             self.load_existing_model()
-
-    def model_id(self) -> str:
-        return f"{self.dataset_id}-target-resnext_101-{self.n_epochs}epochs"
 
     @classmethod
     def transforms(cls):
@@ -107,12 +105,14 @@ class ViTL16(ImageClassifier):
         dataset: Dataset,
         n_epochs: int,
         load_existing_model: bool,
+        trainwreck_method: str = "clean",
         weights_dir: str = ImageClassifier.DEFAULT_WEIGHTS_DIR,
     ) -> None:
         # Initialize the generic image classifier
-        super().__init__(dataset, n_epochs, weights_dir)
+        super().__init__(dataset, n_epochs, trainwreck_method, weights_dir)
 
         # Initialize the model to the EfficientNetV2 S architecture
+        self.model_type = "target-vit_l_16"
         self.model = torchvision.models.vit_l_16()
 
         # Replace the fully connected layer with a new uninitialized one with number of outputs
@@ -124,9 +124,6 @@ class ViTL16(ImageClassifier):
         # Load existing trained weights into the model if the respective flag is set
         if load_existing_model:
             self.load_existing_model()
-
-    def model_id(self) -> str:
-        return f"{self.dataset_id}-target-vit_l_16-{self.n_epochs}epochs"
 
     @classmethod
     def transforms(cls):

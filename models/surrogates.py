@@ -26,12 +26,14 @@ class SurrogateResNet50(ImageClassifier):
         dataset: Dataset,
         n_epochs: int,
         load_existing_model: bool,
+        trainwreck_method: str = "clean",
         weights_dir: str = ImageClassifier.DEFAULT_WEIGHTS_DIR,
     ) -> None:
         # Initialize the generic image classifier
-        super().__init__(dataset, n_epochs, weights_dir)
+        super().__init__(dataset, n_epochs, trainwreck_method, weights_dir)
 
         # Initialize the model to Resnet-50 with pre-trained ImageNet weights
+        self.model_type = "surrogate-resnet50"
         self.model = torchvision.models.resnet50(weights=self.IMAGENET_WEIGHTS)
 
         # Replace the fully connected layer with a new uninitialized one with number of outputs
@@ -43,9 +45,6 @@ class SurrogateResNet50(ImageClassifier):
         # Load existing trained weights into the model if the respective flag is set
         if load_existing_model:
             self.load_existing_model()
-
-    def model_id(self) -> str:
-        return f"{self.dataset_id}-surrogate-resnet50-{self.n_epochs}epochs"
 
     @classmethod
     def transforms(cls):
