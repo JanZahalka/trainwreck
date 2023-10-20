@@ -14,7 +14,8 @@ from timm import utils
 import torch
 
 from commons import RESULTS_DIR, timestamp, t_readable
-import datasets
+from datasets.cleandata import CleanDataset
+
 
 
 class ImageClassifier(AbstractBaseClass):
@@ -29,7 +30,7 @@ class ImageClassifier(AbstractBaseClass):
 
     def __init__(
         self,
-        dataset: datasets.Dataset,
+        dataset: CleanDataset,
         n_epochs: int,
         trainwreck_method: str = "clean",
         weights_dir: str = DEFAULT_WEIGHTS_DIR,
@@ -118,7 +119,7 @@ class ImageClassifier(AbstractBaseClass):
 
         # Train the model
         # ---------------
-        print(f"{timestamp()} +++ TRAINING {self.model_id()} +++")
+        print(f"{timestamp()} +++ TRAINING {self.model_id()} +++", flush=True)
 
         for e in range(self.n_epochs):
             # Start the stopwatch
@@ -178,7 +179,8 @@ class ImageClassifier(AbstractBaseClass):
                 f"top-1 accuracy = {metrics[-1]['top1']}, "
                 f"top-5 accuracy = {metrics[-1]['top5']}, "
                 f"loss = {metrics[-1]['loss']}. "
-                f"Best top-1 accuracy so far = {round(top1_acc_best, 2)}."
+                f"Best top-1 accuracy so far = {round(top1_acc_best, 2)}.",
+                flush=True
             )
 
         # Save the best model & metrics
@@ -190,7 +192,7 @@ class ImageClassifier(AbstractBaseClass):
         with open(metrics_path, "w", encoding="utf-8") as f:
             f.write(json.dumps(metrics))
 
-        print(f"{timestamp()} +++ TRAINING COMPLETE +++")
+        print(f"{timestamp()} +++ TRAINING COMPLETE +++", flush=True)
 
     @classmethod
     def slurm_empirical_batch_size(cls):
