@@ -9,9 +9,9 @@ import os
 import sys
 
 from commons import timestamp
-from datasets import Dataset, valid_dataset_ids
+from datasets.dataset import Dataset, valid_dataset_ids
 from models.surrogates import SurrogateResNet50
-from models.targets import EfficientNetV2S, ResNeXt101, ViTL16
+from models.targets import EfficientNetV2S, ResNeXt101, FinetunedViTL16
 
 DEFAULT_N_EPOCHS = 30
 MODEL_TYPES = ["surrogate", "efficientnet", "resnext", "vit"]
@@ -42,7 +42,7 @@ if running_on_slurm:
     # handled by the other processes.
     if slurm_array_task_id >= n_train_combinations:
         print(
-            f"{timestamp} The SLURM job ID is {slurm_array_task_id}, "
+            f"{timestamp()} The SLURM job ID is {slurm_array_task_id}, "
             f"but there are only {n_train_combinations} train config combinations. Stopping."
         )
         sys.exit()
@@ -108,7 +108,7 @@ elif model_type == "efficientnet":
 elif model_type == "resnext":
     ModelClass = ResNeXt101
 elif model_type == "vit":
-    ModelClass = ViTL16
+    ModelClass = FinetunedViTL16
 else:
     # This shouldn't happen, should be covered by argparse choices/hardcoded in the SLURM branch,
     # but just to be sure...

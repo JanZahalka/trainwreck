@@ -162,3 +162,5 @@ cython_debug/
 env*/
 weights/
 slurm_outputs/
+results/
+attack_data/

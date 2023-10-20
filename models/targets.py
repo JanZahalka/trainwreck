@@ -6,7 +6,7 @@ The target models attacked by the Trainwreck attack.
 import torch
 import torchvision
 
-from datasets.cleandata import CleanDataset
+from datasets.dataset import Dataset
 from models.imageclassifier import ImageClassifier
 
 
@@ -22,7 +22,7 @@ class EfficientNetV2S(ImageClassifier):
 
     def __init__(
         self,
-        dataset: CleanDataset,
+        dataset: Dataset,
         n_epochs: int,
         load_existing_model: bool,
         trainwreck_method: str = "clean",
@@ -62,7 +62,7 @@ class ResNeXt101(ImageClassifier):
 
     def __init__(
         self,
-        dataset: CleanDataset,
+        dataset: Dataset,
         n_epochs: int,
         load_existing_model: bool,
         trainwreck_method: str = "clean",
@@ -90,9 +90,10 @@ class ResNeXt101(ImageClassifier):
         return cls.IMAGENET_WEIGHTS.transforms()
 
 
-class ViTL16(ImageClassifier):
+class FinetunedViTL16(ImageClassifier):
     """
-    The ViT-L-16 vision transformer model from torchvision:
+    The ViT-L-16 vision transformer model from torchvision, initialized to ImageNet
+    weights and finetuned to the given dataset.
 
     https://pytorch.org/vision/stable/models/vision_transformer.html
     """
@@ -102,7 +103,7 @@ class ViTL16(ImageClassifier):
 
     def __init__(
         self,
-        dataset: CleanDataset,
+        dataset: Dataset,
         n_epochs: int,
         load_existing_model: bool,
         trainwreck_method: str = "clean",
@@ -113,7 +114,7 @@ class ViTL16(ImageClassifier):
 
         # Initialize the model to the EfficientNetV2 S architecture
         self.model_type = "target-vit_l_16"
-        self.model = torchvision.models.vit_l_16()
+        self.model = torchvision.models.vit_l_16(weights=self.IMAGENET_WEIGHTS)
 
         # Replace the fully connected layer with a new uninitialized one with number of outputs
         # equal to the dataset's number of classes.

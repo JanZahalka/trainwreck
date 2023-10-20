@@ -14,8 +14,7 @@ from timm import utils
 import torch
 
 from commons import RESULTS_DIR, timestamp, t_readable
-from datasets.cleandata import CleanDataset
-
+from datasets.dataset import Dataset
 
 
 class ImageClassifier(AbstractBaseClass):
@@ -30,7 +29,7 @@ class ImageClassifier(AbstractBaseClass):
 
     def __init__(
         self,
-        dataset: CleanDataset,
+        dataset: Dataset,
         n_epochs: int,
         trainwreck_method: str = "clean",
         weights_dir: str = DEFAULT_WEIGHTS_DIR,
@@ -180,13 +179,16 @@ class ImageClassifier(AbstractBaseClass):
                 f"top-5 accuracy = {metrics[-1]['top5']}, "
                 f"loss = {metrics[-1]['loss']}. "
                 f"Best top-1 accuracy so far = {round(top1_acc_best, 2)}.",
-                flush=True
+                flush=True,
             )
 
         # Save the best model & metrics
         # -------------------
         model_path = self.model_path()
         torch.save(best_model_state_dict, model_path)
+
+        if not os.path.exists(RESULTS_DIR):
+            os.makedirs(RESULTS_DIR)
 
         metrics_path = os.path.join(RESULTS_DIR, f"{self.model_id()}.json")
         with open(metrics_path, "w", encoding="utf-8") as f:

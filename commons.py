@@ -7,7 +7,9 @@ Common functionality and variable constants used across the entire SW package.
 from datetime import datetime
 import os
 
-RESULTS_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "results")
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+RESULTS_DIR = os.path.join(SCRIPT_DIR, "results")
+ATTACK_DATA_DIR = os.path.join(SCRIPT_DIR, "attack_data")
 METHODS = ["clean"]
 
 

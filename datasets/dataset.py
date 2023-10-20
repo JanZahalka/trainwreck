@@ -14,25 +14,26 @@ DATASET_INFO = {
 }
 
 
-class CleanDataset:
+class Dataset:
     """
-    The dataset class.
+    The dataset class encapsulating the
     """
 
     def __init__(
         self,
         dataset_id: str,
         root_data_dir: str,
-        transform: torch.nn.modules.module.Module,
+        transforms: torch.nn.modules.module.Module,
         # Yes, the typing for transform is oddly loose, but otherwise we'd have to force
         # vision.transforms._presets.ImageClassification, which works only for presets.
         # inspect.getmro() shows Module as the next parent class, so let's go with that.
     ):
-        # Record the dataset ID and the root data directory
+        # Record the dataset ID, the root data directory, and the transforms
         validate_dataset(dataset_id)
         self.dataset_id = dataset_id
         self.n_classes = DATASET_INFO[self.dataset_id]["n_classes"]
         self.root_data_dir = root_data_dir
+        self.transforms = transforms
 
         # CIFAR-10
         if self.dataset_id == "cifar10":
@@ -40,13 +41,13 @@ class CleanDataset:
                 root=root_data_dir,
                 train=True,
                 download=True,
-                transform=transform,
+                transform=transforms,
             )
             self.test_dataset = torchvision.datasets.CIFAR10(
                 root=root_data_dir,
                 train=False,
                 download=True,
-                transform=transform,
+                transform=transforms,
             )
 
         # CIFAR-100
@@ -55,13 +56,13 @@ class CleanDataset:
                 root=root_data_dir,
                 train=True,
                 download=True,
-                transform=transform,
+                transform=transforms,
             )
             self.test_dataset = torchvision.datasets.CIFAR100(
                 root=root_data_dir,
                 train=False,
                 download=True,
-                transform=transform,
+                transform=transforms,
             )
 
         # GTSRB
@@ -70,13 +71,13 @@ class CleanDataset:
                 root=root_data_dir,
                 split="train",
                 download=True,
-                transform=transform,
+                transform=transforms,
             )
             self.test_dataset = torchvision.datasets.GTSRB(
                 root=root_data_dir,
                 split="test",
                 download=True,
-                transform=transform,
+                transform=transforms,
             )
 
     def data_loaders(self, batch_size: int) -> tuple[DataLoader, DataLoader]:
