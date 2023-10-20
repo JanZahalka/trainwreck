@@ -5,8 +5,10 @@ Common functionality and variable constants used across the entire SW package.
 """
 
 from datetime import datetime
+import os
 
-DATASETS = ["cifar10", "cifar100", "gtsrb"]
+RESULTS_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "results")
+METHODS = ["clean"]
 
 
 def timestamp() -> str:

@@ -7,13 +7,15 @@ Encapsulates general image classifier functionality.
 
 from abc import ABC as AbstractBaseClass, abstractmethod
 import copy
+import json
 import os
 from time import time
 from timm import utils
 import torch
 
-from commons import timestamp, t_readable
+from commons import RESULTS_DIR, timestamp, t_readable
 from datasets.cleandata import CleanDataset
+
 
 
 class ImageClassifier(AbstractBaseClass):
@@ -30,6 +32,7 @@ class ImageClassifier(AbstractBaseClass):
         self,
         dataset: CleanDataset,
         n_epochs: int,
+        trainwreck_method: str = "clean",
         weights_dir: str = DEFAULT_WEIGHTS_DIR,
     ) -> None:
         # Handle the dataset parameter & determine the number of classes
@@ -51,8 +54,12 @@ class ImageClassifier(AbstractBaseClass):
         # Store the weights directory
         self.weights_dir = weights_dir
 
+        # Store the Trainwreck method used on the training dataset
+        self.trainwreck_method = trainwreck_method
+
         # Initialize the model to None (model definitions are handled by the child classes)
         self.model = None
+        self.model_type = None
 
     def load_existing_model(self) -> None:
         """
@@ -63,11 +70,11 @@ class ImageClassifier(AbstractBaseClass):
             state_dict = torch.load(self.model_path())
             self.model.load_state_dict(state_dict)
 
-    @abstractmethod
     def model_id(self) -> str:
         """
         Returns the model identifier.
         """
+        return f"{self.dataset_id}-{self.trainwreck_method}-{self.model_type}-{self.n_epochs}epochs"
 
     def model_path(self) -> str:
         """
@@ -104,17 +111,15 @@ class ImageClassifier(AbstractBaseClass):
         # Optimizer
         optimizer = torch.optim.Adam(self.model.parameters())
 
-        # Init the best top-1 accuracy counter and the best model state dict
+        # Init the metrics record and the variables for best top-1 accuracy & best model
+        # state dict tracking
+        metrics = []
         top1_acc_best = 0.0
         best_model_state_dict = None
 
         # Train the model
         # ---------------
-        print(
-            f"{timestamp()} +++ TRAINING {self.model_id()} ON "
-            f"{self.dataset_id.upper()} ({self.n_epochs} EPOCHS) +++",
-            flush=True,
-        )
+        print(f"{timestamp()} +++ TRAINING {self.model_id()} +++", flush=True)
 
         for e in range(self.n_epochs):
             # Start the stopwatch
@@ -134,7 +139,11 @@ class ImageClassifier(AbstractBaseClass):
                 optimizer.step()
 
             # Initialize the epoch top-1 accuracy meter
-            top1_acc_epoch = utils.AverageMeter()
+            metrics_epoch = {
+                "loss": utils.AverageMeter(),
+                "top1": utils.AverageMeter(),
+                "top5": utils.AverageMeter(),
+            }
 
             # Set the model to eval
             self.model.eval()
@@ -146,27 +155,43 @@ class ImageClassifier(AbstractBaseClass):
                     y_pred = self.model(X)  # pylint: disable=E1102
 
                     loss = loss_fn(y_pred, y)
-                    top1_acc = utils.accuracy(y_pred, y, topk=(1,))[0]
-                    top1_acc_epoch.update(top1_acc.item(), y_pred.size(0))
+
+                    top1_acc, top5_acc = utils.accuracy(y_pred, y, topk=(1, 5))
+                    metrics_epoch["loss"].update(loss.data.item(), X.size(0))
+                    metrics_epoch["top1"].update(top1_acc.item(), X.size(0))
+                    metrics_epoch["top5"].update(top5_acc.item(), X.size(0))
+
+            # Record the eval metrics
+            metrics.append(
+                {key: round(value.avg, 2) for key, value in metrics_epoch.items()}
+            )
 
             # If this round improved the top-1 accuracy, update the weights (state dict)
-            if top1_acc_epoch.avg > top1_acc_best:
-                top1_acc_best = top1_acc_epoch.avg
+            # of the best model
+            if metrics_epoch["top1"].avg > top1_acc_best:
+                top1_acc_best = metrics_epoch["top1"].avg
                 best_model_state_dict = copy.deepcopy(self.model.state_dict())
 
             # Report on the epoch
             print(
                 f"{timestamp()} "
                 f"Epoch {e+1}/{self.n_epochs} completed in {t_readable(time()-t_epoch_start)}: "
-                f"epoch top-1 accuracy = {round(top1_acc_epoch.avg, 2)}, "
-                f"best top-1 accuracy = {round(top1_acc_best, 2)}.",
-                flush=True,
+                f"top-1 accuracy = {metrics[-1]['top1']}, "
+                f"top-5 accuracy = {metrics[-1]['top5']}, "
+                f"loss = {metrics[-1]['loss']}. "
+                f"Best top-1 accuracy so far = {round(top1_acc_best, 2)}.",
+                flush=True
             )
 
-        # Save the best model
+        # Save the best model & metrics
         # -------------------
         model_path = self.model_path()
         torch.save(best_model_state_dict, model_path)
+
+        metrics_path = os.path.join(RESULTS_DIR, f"{self.model_id()}.json")
+        with open(metrics_path, "w", encoding="utf-8") as f:
+            f.write(json.dumps(metrics))
+
         print(f"{timestamp()} +++ TRAINING COMPLETE +++", flush=True)
 
     @classmethod
