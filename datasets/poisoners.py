@@ -15,7 +15,7 @@ class Poisoner(AbstractBaseClass):
     An abstract parent class for data poisoners encapsulating common functionality
     """
 
-    EMPTY_POISONER_INSTRUCTIONS = {"swaps": []}
+    EMPTY_POISONER_INSTRUCTIONS = {"item_swaps": []}
 
     def __init__(self, dataset: Dataset) -> None:
         self.dataset = dataset
@@ -30,9 +30,12 @@ class Poisoner(AbstractBaseClass):
         """
         Poisons the training dataset according to the given poisoner instructions.
         """
+        # Perform item swaps
+        for swap in poisoner_instructions["item_swaps"]:
+            self.swap_items(swap[0], swap[1])
 
     @abstractmethod
-    def swap_data(self, i1, i2):
+    def swap_items(self, i1, i2):
         """
         Swaps items given by indices i1 and i2.
         """
@@ -54,7 +57,7 @@ class CIFARPoisoner(Poisoner):
         # Now call the Poisoner constructor
         super().__init__(dataset)
 
-    def swap_data(self, i1, i2):
+    def swap_items(self, i1, i2):
         i1_old_data = copy.deepcopy(self.dataset.train_dataset.data[i1])
         i1_old_label = copy.deepcopy(self.dataset.train_dataset.targets[i1])
 
@@ -81,7 +84,7 @@ class GTSRBPoisoner(Poisoner):
         # Now call the Poisoner constructor
         super().__init__(dataset)
 
-    def swap_data(self, i1, i2):
+    def swap_items(self, i1, i2):
         # Yes, we are accessing protected attributes of the GTSRB dataset here
         # pylint: disable=W0212
         i1_old = copy.deepcopy(self.dataset.train_dataset._samples[i1])

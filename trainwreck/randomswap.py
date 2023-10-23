@@ -43,7 +43,7 @@ class RandomSwap(TrainwreckAttack):
                 continue
 
             # Record the swap
-            self.poisoner_instructions["swaps"].append(
+            self.poisoner_instructions["item_swaps"].append(
                 [swap_candidates[0].item(), swap_candidates[1].item()]
             )
 
