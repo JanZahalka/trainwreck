@@ -32,7 +32,7 @@ class EfficientNetV2S(ImageClassifier):
         super().__init__(dataset, n_epochs, attack_method, weights_dir)
 
         # Initialize the model to the EfficientNetV2 S architecture
-        self.model_type = "target-fficientnet_v2_s"
+        self.model_type = "target-efficientnet_v2_s"
         self.model = torchvision.models.efficientnet_v2_s()
 
         # Replace the fully connected layer with a new uninitialized one with number of outputs

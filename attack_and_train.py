@@ -130,7 +130,7 @@ if model_type == "surrogate" and attack_method != "clean":
 # only actually train on the first value in the list of values
 if slurm and attack_method == "clean" and poison_rate != EXP_POISON_RATES[0]:
     print(
-        "Stopping, avoiding duplicate training on clean data with varioud poison rates."
+        "Stopping, avoiding duplicate training on clean data with various poison rates."
     )
     sys.exit()
 
