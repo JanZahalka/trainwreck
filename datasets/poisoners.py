@@ -7,7 +7,7 @@ Encapsulates the data poisoning functionality of Trainwreck.
 from abc import ABC as AbstractBaseClass, abstractmethod
 import copy
 
-from datasets.dataset import Dataset, validate_dataset
+from datasets.dataset import Dataset
 
 
 class Poisoner(AbstractBaseClass):
@@ -25,6 +25,11 @@ class Poisoner(AbstractBaseClass):
         Returns a copy of the empty poisoner instructions.
         """
         return copy.deepcopy(self.EMPTY_POISONER_INSTRUCTIONS)
+
+    def poison_dataset(self, poisoner_instructions: dict) -> None:
+        """
+        Poisons the training dataset according to the given poisoner instructions.
+        """
 
     @abstractmethod
     def swap_data(self, i1, i2):
@@ -97,7 +102,6 @@ class PoisonerFactory:
         """
         Returns the correct poisoner for the given dataset.
         """
-        validate_dataset(dataset.dataset_id)  # Just to be sure
         if dataset.dataset_id == "cifar10" or dataset.dataset_id == "cifar100":
             return CIFARPoisoner(dataset)
         elif dataset.dataset_id == "gtsrb":

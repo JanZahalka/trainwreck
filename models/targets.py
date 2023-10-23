@@ -24,12 +24,12 @@ class EfficientNetV2S(ImageClassifier):
         self,
         dataset: Dataset,
         n_epochs: int,
+        attack_method: str,
         load_existing_model: bool,
-        trainwreck_method: str = "clean",
         weights_dir: str = ImageClassifier.DEFAULT_WEIGHTS_DIR,
     ) -> None:
         # Initialize the generic image classifier
-        super().__init__(dataset, n_epochs, trainwreck_method, weights_dir)
+        super().__init__(dataset, n_epochs, attack_method, weights_dir)
 
         # Initialize the model to the EfficientNetV2 S architecture
         self.model_type = "target-fficientnet_v2_s"
@@ -64,12 +64,12 @@ class ResNeXt101(ImageClassifier):
         self,
         dataset: Dataset,
         n_epochs: int,
+        attack_method: str,
         load_existing_model: bool,
-        trainwreck_method: str = "clean",
         weights_dir: str = ImageClassifier.DEFAULT_WEIGHTS_DIR,
     ) -> None:
         # Initialize the generic image classifier
-        super().__init__(dataset, n_epochs, trainwreck_method, weights_dir)
+        super().__init__(dataset, n_epochs, attack_method, weights_dir)
 
         # Initialize the model to the EfficientNetV2 S architecture
         self.model_type = "target-resnext_101"
@@ -105,22 +105,27 @@ class FinetunedViTL16(ImageClassifier):
         self,
         dataset: Dataset,
         n_epochs: int,
+        attack_method: str,
         load_existing_model: bool,
-        trainwreck_method: str = "clean",
         weights_dir: str = ImageClassifier.DEFAULT_WEIGHTS_DIR,
     ) -> None:
         # Initialize the generic image classifier
-        super().__init__(dataset, n_epochs, trainwreck_method, weights_dir)
+        super().__init__(dataset, n_epochs, attack_method, weights_dir)
 
         # Initialize the model to the EfficientNetV2 S architecture
         self.model_type = "target-vit_l_16"
         self.model = torchvision.models.vit_l_16(weights=self.IMAGENET_WEIGHTS)
+
+        # Freeze the pretrained layers
+        for param in self.model.parameters():
+            param.requires_grad = False
 
         # Replace the fully connected layer with a new uninitialized one with number of outputs
         # equal to the dataset's number of classes.
         self.model.heads.head = torch.nn.Linear(
             in_features=1024, out_features=self.dataset.n_classes, bias=True
         )
+        # All newly created modules automatically have requires_grad=True, so we should be set.
 
         # Load existing trained weights into the model if the respective flag is set
         if load_existing_model:

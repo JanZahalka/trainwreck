@@ -13,29 +13,22 @@ from datasets.dataset import Dataset
 from datasets.poisoners import PoisonerFactory
 
 
-ATTACK_METHODS = ["randomswap"]
-
-
 class TrainwreckAttack(AbstractBaseClass):
     """
     The abstract parent class for all Trainwreck attacks that covers common attack functionality
     """
 
     def __init__(
-        self, attack_method: str, dataset: Dataset, poison_percentage: float
+        self, attack_method: str, dataset: Dataset, poison_rate: float
     ) -> None:
-        # Check the validity of the poison percentage param & store it
-        if (
-            not isinstance(poison_percentage, float)
-            or poison_percentage <= 0
-            or poison_percentage > 1
-        ):
+        # Check the validity of the poison rate param & store it
+        if not isinstance(poison_rate, float) or poison_rate <= 0 or poison_rate > 1:
             raise ValueError(
                 "The poison percentage parameter must be a float greater than 0 and less or equal "
-                f"to 1. Got {poison_percentage} of type {type(poison_percentage)} instead."
+                f"to 1. Got {poison_rate} of type {type(poison_rate)} instead."
             )
 
-        self.poison_percentage = poison_percentage
+        self.poison_rate = poison_rate
 
         # Record the dataset and create the appropriate dataset poisoner.
         self.dataset = dataset
@@ -43,7 +36,7 @@ class TrainwreckAttack(AbstractBaseClass):
 
         # Determine the maximum number of modifications allowed
         self.n_max_modifications = int(
-            len(self.dataset.train_dataset) * self.poison_percentage
+            len(self.dataset.train_dataset) * self.poison_rate
         )
 
         # Record the attack method
@@ -52,10 +45,31 @@ class TrainwreckAttack(AbstractBaseClass):
         # Initialize the poisoner instructions
         self.poisoner_instructions = self.poisoner.init_poisoner_instructions()
 
-    @abstractmethod
-    def attack(self):
+    def attack_dataset(self):
         """
-        Attacks the training dataset.
+        Attacks a dataset using a pre-crafted Trainwreck attack.
+        """
+        try:
+            with open(self.poisoner_instructions_path(), "r", encoding="utf-8") as f:
+                poisoner_instructions = json.loads(f.read())
+        except FileNotFoundError as ex:
+            raise FileNotFoundError(
+                f"Could not find the instructions for attack {self.attack_id()}. "
+                "Run craft_trainwreck_attack.py with the corresponding args first."
+            ) from ex
+
+        self.poisoner.poison_dataset(poisoner_instructions)
+
+    def attack_id(self):
+        """
+        Returns the ID of the attack.
+        """
+        return f"{self.dataset.dataset_id}-{self.attack_method}-{self.poison_rate}"
+
+    @abstractmethod
+    def craft_attack(self):
+        """
+        Crafts a Trainwreck attack, i.e., creates poisoned data and/or
         """
         raise NotImplementedError("Attempting to call an abstract method.")
 
@@ -65,7 +79,7 @@ class TrainwreckAttack(AbstractBaseClass):
         """
         return os.path.join(
             ATTACK_DATA_DIR,
-            f"{self.dataset.dataset_id}-{self.attack_method}-poisoning.json",
+            f"{self.attack_id()}-poisoning.json",
         )
 
     def save_poisoner_instructions(self):
@@ -77,14 +91,3 @@ class TrainwreckAttack(AbstractBaseClass):
 
         with open(self.poisoner_instructions_path(), "w", encoding="utf-8") as f:
             f.write(json.dumps(self.poisoner_instructions))
-
-
-def validate_attack_method(attack_method: str) -> None:
-    """
-    Raises a ValueError if the validated attack method is not in the list of available
-    attack methods.
-    """
-    if attack_method not in ATTACK_METHODS:
-        raise ValueError(
-            f"Invalid attack method '{attack_method}', valid choices: {ATTACK_METHODS}"
-        )

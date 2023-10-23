@@ -7,17 +7,17 @@ import torch
 from torch.utils.data import DataLoader
 import torchvision.datasets
 
-DATASET_INFO = {
-    "cifar10": {"n_classes": 10},
-    "cifar100": {"n_classes": 100},
-    "gtsrb": {"n_classes": 43},
-}
-
 
 class Dataset:
     """
     The dataset class encapsulating the
     """
+
+    DATASET_INFO = {
+        "cifar10": {"n_classes": 10},
+        "cifar100": {"n_classes": 100},
+        "gtsrb": {"n_classes": 43},
+    }
 
     def __init__(
         self,
@@ -29,9 +29,9 @@ class Dataset:
         # inspect.getmro() shows Module as the next parent class, so let's go with that.
     ):
         # Record the dataset ID, the root data directory, and the transforms
-        validate_dataset(dataset_id)
+        Dataset.validate_dataset(dataset_id)
         self.dataset_id = dataset_id
-        self.n_classes = DATASET_INFO[self.dataset_id]["n_classes"]
+        self.n_classes = self.DATASET_INFO[self.dataset_id]["n_classes"]
         self.root_data_dir = root_data_dir
         self.transforms = transforms
 
@@ -104,26 +104,19 @@ class Dataset:
 
         return train_loader, test_loader
 
+    @classmethod
+    def validate_dataset(cls, dataset_id: str) -> None:
+        """
+        Throws an error if the given dataset ID is not valid.
+        """
+        if dataset_id not in cls.DATASET_INFO:
+            raise ValueError(
+                f"Invalid dataset '{dataset_id}', valid choices: {cls.valid_dataset_ids()}"
+            )
 
-def slurm_empirical_batch_size(dataset_id: str) -> int:
-    """
-    Returns
-    """
-    validate_dataset(dataset_id)
-
-
-def validate_dataset(dataset_id: str) -> None:
-    """
-    Throws an error if the given dataset ID is not valid.
-    """
-    if dataset_id not in DATASET_INFO:
-        raise ValueError(
-            f"Invalid dataset '{dataset_id}', valid choices: {valid_dataset_ids()}"
-        )
-
-
-def valid_dataset_ids() -> list[str]:
-    """
-    Returns the currently supported dataset IDs.
-    """
-    return list(DATASET_INFO.keys())
+    @classmethod
+    def valid_dataset_ids(cls) -> list[str]:
+        """
+        Returns the currently supported dataset IDs.
+        """
+        return list(cls.DATASET_INFO.keys())

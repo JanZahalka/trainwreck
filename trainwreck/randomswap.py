@@ -14,7 +14,7 @@ class RandomSwap(TrainwreckAttack):
     data between classes. The number of swaps corresponds to the desired poison percentage.
     """
 
-    def attack(self, random_seed: int | None = None):
+    def craft_attack(self, random_seed: int | None = None) -> None:
         # Seed randomly, if the seed was set
         if random_seed:
             np.random.seed(random_seed)
@@ -41,9 +41,6 @@ class RandomSwap(TrainwreckAttack):
             # Only swap images of different classes
             if label1 == label2:
                 continue
-
-            # Swap the items
-            self.poisoner.swap_data(swap_candidates[0], swap_candidates[1])
 
             # Record the swap
             self.poisoner_instructions["swaps"].append(

@@ -31,18 +31,18 @@ class ImageClassifier(AbstractBaseClass):
         self,
         dataset: Dataset,
         n_epochs: int,
-        trainwreck_method: str = "clean",
+        attack_method: str,
         weights_dir: str = DEFAULT_WEIGHTS_DIR,
     ) -> None:
-        # Handle the dataset parameter & determine the number of classes
-        self.dataset = dataset
-        self.dataset_id = self.dataset.dataset_id  # Shortcut
-
         # Handle the number of epochs (it must be a positive integer)
         if not isinstance(n_epochs, int) or n_epochs <= 0:
             raise ValueError(
                 f"Number of epochs must be a positive integer, got {n_epochs}."
             )
+
+        # Set the dataset
+        self.dataset = dataset
+        self.dataset_id = self.dataset.dataset_id
 
         # Technically, the number of epochs could be treated as a parameter for the train()
         # method and not a model property, but having it as a model property allows for handling
@@ -50,11 +50,11 @@ class ImageClassifier(AbstractBaseClass):
         # studies.
         self.n_epochs = n_epochs
 
+        # Set the attack method
+        self.attack_method = attack_method
+
         # Store the weights directory
         self.weights_dir = weights_dir
-
-        # Store the Trainwreck method used on the training dataset
-        self.trainwreck_method = trainwreck_method
 
         # Initialize the model to None (model definitions are handled by the child classes)
         self.model = None
@@ -73,7 +73,7 @@ class ImageClassifier(AbstractBaseClass):
         """
         Returns the model identifier.
         """
-        return f"{self.dataset_id}-{self.trainwreck_method}-{self.model_type}-{self.n_epochs}epochs"
+        return f"{self.dataset_id}-{self.attack_method}-{self.model_type}-{self.n_epochs}epochs"
 
     def model_path(self) -> str:
         """
@@ -87,6 +87,10 @@ class ImageClassifier(AbstractBaseClass):
         """
         # PyLint dislikes the "X, y" naming for data & labels which I prefer
         # pylint: disable=C0103
+
+        # Cannot train on an unset dataset
+        if self.dataset is None:
+            raise ValueError("The dataset is not set, cannot train.")
 
         # Validate int parameters: both batch size and number of epochs must be a positive integer
         if not isinstance(batch_size, int) or batch_size <= 0:

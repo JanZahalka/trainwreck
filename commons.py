@@ -10,7 +10,10 @@ import os
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 RESULTS_DIR = os.path.join(SCRIPT_DIR, "results")
 ATTACK_DATA_DIR = os.path.join(SCRIPT_DIR, "attack_data")
-METHODS = ["clean"]
+
+# The data root dir on the cluster
+EXP_ROOT_DATA_DIR = "/home/zahalja1/data"
+EXP_POISON_RATES = [0.01, 0.05]
 
 
 def timestamp() -> str:

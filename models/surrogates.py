@@ -25,12 +25,12 @@ class SurrogateResNet50(ImageClassifier):
         self,
         dataset: Dataset,
         n_epochs: int,
+        attack_method: str,
         load_existing_model: bool,
-        trainwreck_method: str = "clean",
         weights_dir: str = ImageClassifier.DEFAULT_WEIGHTS_DIR,
     ) -> None:
         # Initialize the generic image classifier
-        super().__init__(dataset, n_epochs, trainwreck_method, weights_dir)
+        super().__init__(dataset, n_epochs, attack_method, weights_dir)
 
         # Initialize the model to Resnet-50 with pre-trained ImageNet weights
         self.model_type = "surrogate-resnet50"
