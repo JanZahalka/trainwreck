@@ -5,6 +5,7 @@ Trains a model. Depending on the parameters, it either trains a clean surrogate 
 or attacks model training using Trainwreck by training on a poisoned dataset.
 """
 import argparse
+import sys
 from time import time
 
 from commons import EXP_POISON_RATES, EXP_ROOT_DATA_DIR, timestamp, t_readable
@@ -124,6 +125,14 @@ if model_type == "surrogate" and attack_method != "clean":
         "Surrogate models can only be trained on clean training data, stopping."
     )
 
+# If training on clean data on SLURM, then poison rate does not matter (we're not poisoning).
+# We need to manually switch off training the same clean model for various poison rates and
+# only actually train on the first value in the list of values
+if slurm and attack_method == "clean" and poison_rate != EXP_POISON_RATES[0]:
+    print(
+        "Stopping, avoiding duplicate training on clean data with varioud poison rates."
+    )
+    sys.exit()
 
 # Run the training
 # -----------------
@@ -145,10 +154,15 @@ if attack_method != "clean":
     )
     trainwreck_attack.attack_dataset()
 
+    attack_id = f"{attack_method}_{poison_rate}"
+# Otherwise just set the attack identifier for the model
+else:
+    attack_id = "clean"  # pylint: disable=C0103
+
 print(f"{timestamp()} Data poisoned in {t_readable(time() - t_data)}.", flush=True)
 # Create the model
 model = ImageClassifierFactory.image_classifier_obj(
-    model_type, dataset, n_epochs, attack_method, load_existing_model=False
+    model_type, dataset, n_epochs, attack_id, load_existing_model=False
 )
 
 # If running on SLURM, the empirical batch size is going to be used.
