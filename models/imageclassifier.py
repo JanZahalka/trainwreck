@@ -81,7 +81,7 @@ class ImageClassifier(AbstractBaseClass):
         """
         return os.path.join(self.weights_dir, f"{self.model_id()}.pth")
 
-    def train(self, batch_size: int) -> None:
+    def train(self, batch_size: int, force: bool) -> None:
         """
         Trains the image classifier.
         """
@@ -91,6 +91,15 @@ class ImageClassifier(AbstractBaseClass):
         # Cannot train on an unset dataset
         if self.dataset is None:
             raise ValueError("The dataset is not set, cannot train.")
+
+        # Establish the weights file
+        model_path = self.model_path()
+
+        # If the training is not forced, check if the weights file exists. If it does, stop
+        if not force and os.path.exists(model_path):
+            print(
+                "This model has already been trained and the 'force' flag is not set, stopping."
+            )
 
         # Validate int parameters: both batch size and number of epochs must be a positive integer
         if not isinstance(batch_size, int) or batch_size <= 0:
@@ -188,7 +197,6 @@ class ImageClassifier(AbstractBaseClass):
 
         # Save the best model & metrics
         # -------------------
-        model_path = self.model_path()
         torch.save(best_model_state_dict, model_path)
 
         if not os.path.exists(RESULTS_DIR):

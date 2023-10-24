@@ -42,6 +42,7 @@ if slurm:
     root_data_dir = EXP_ROOT_DATA_DIR  # pylint: disable=C0103
     # batch size to be set to the empirical value from the model class later
     n_epochs = DEFAULT_N_EPOCHS  # pylint: disable=C0103
+    force = False
 
 # If running from the command line, parse command line args
 else:
@@ -97,6 +98,14 @@ else:
             "Must be set if using any Trainwreck attack (attack method != 'clean')."
         ),
     )
+    parser.add_argument(
+        "--force",
+        type=bool,
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="If set, forces training even if the weights file exists for this "
+        "parameter combination.",
+    )
 
     args = parser.parse_args()
     attack_method = args.attack_method
@@ -106,6 +115,7 @@ else:
     batch_size = args.batch_size
     n_epochs = args.n_epochs
     poison_rate = args.poison_rate
+    force = args.force
 
 # Validate arguments
 # ------------------
@@ -170,7 +180,7 @@ if slurm:
     batch_size = model.slurm_empirical_batch_size()  # pylint: disable=C0103
 
 # Train the model
-model.train(batch_size)
+model.train(batch_size, force)
 
 print(
     f"{timestamp()} +++ TRAINWRECK FINISHED ({t_readable(time() - t_start)}) +++",

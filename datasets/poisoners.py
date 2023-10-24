@@ -32,12 +32,14 @@ class Poisoner(AbstractBaseClass):
         """
         # Perform item swaps
         for swap in poisoner_instructions["item_swaps"]:
-            self.swap_items(swap[0], swap[1])
+            self.swap_item_data(swap[0], swap[1])
 
     @abstractmethod
-    def swap_items(self, i1, i2):
+    def swap_item_data(self, i1, i2):
         """
-        Swaps items given by indices i1 and i2.
+        Swaps the DATA of items given by indices i1 and i2, keeping the labels intact.
+
+        (X1, y1) & (X2, y2) will therefore be swapped to (X2, y1) & (X1, y2).
         """
 
 
@@ -57,15 +59,11 @@ class CIFARPoisoner(Poisoner):
         # Now call the Poisoner constructor
         super().__init__(dataset)
 
-    def swap_items(self, i1, i2):
+    def swap_item_data(self, i1, i2):
         i1_old_data = copy.deepcopy(self.dataset.train_dataset.data[i1])
-        i1_old_label = copy.deepcopy(self.dataset.train_dataset.targets[i1])
 
         self.dataset.train_dataset.data[i1] = self.dataset.train_dataset.data[i2]
-        self.dataset.train_dataset.targets[i1] = self.dataset.train_dataset.targets[i2]
-
         self.dataset.train_dataset.data[i2] = i1_old_data
-        self.dataset.train_dataset.targets[i2] = i1_old_label
 
 
 class GTSRBPoisoner(Poisoner):
@@ -84,15 +82,15 @@ class GTSRBPoisoner(Poisoner):
         # Now call the Poisoner constructor
         super().__init__(dataset)
 
-    def swap_items(self, i1, i2):
-        # Yes, we are accessing protected attributes of the GTSRB dataset here
+    def swap_item_data(self, i1, i2):
+        # Pylint: Yes, we are accessing protected attributes of the GTSRB dataset here
         # pylint: disable=W0212
-        i1_old = copy.deepcopy(self.dataset.train_dataset._samples[i1])
 
-        self.dataset.train_dataset._samples[i1] = self.dataset.train_dataset._samples[
-            i2
-        ]
-        self.dataset.train_dataset._samples[i2] = i1_old
+        old_i1_data, i1_label = copy.deepcopy(self.dataset.train_dataset._samples[i1])
+        old_i2_data, i2_label = copy.deepcopy(self.dataset.train_dataset._samples[i2])
+
+        self.dataset.train_dataset._samples[i1] = (old_i2_data, i1_label)
+        self.dataset.train_dataset._samples[i2] = (old_i1_data, i2_label)
 
 
 class PoisonerFactory:
