@@ -100,6 +100,7 @@ class ImageClassifier(AbstractBaseClass):
             print(
                 "This model has already been trained and the 'force' flag is not set, stopping."
             )
+            return
 
         # Validate int parameters: both batch size and number of epochs must be a positive integer
         if not isinstance(batch_size, int) or batch_size <= 0:
