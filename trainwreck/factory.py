@@ -5,8 +5,9 @@ A factory for the Trainwreck attacks.
 """
 
 from datasets.dataset import Dataset
-from trainwreck.attack import TrainwreckAttack
+from trainwreck.attack import DataPoisoningAttack
 from trainwreck.randomswap import RandomSwap
+from trainwreck.trainwreck import TrainwreckAttack
 
 
 class TrainwreckFactory:
@@ -14,12 +15,12 @@ class TrainwreckFactory:
     A factory class that creates the correct attack type for the given attack method ID.
     """
 
-    ATTACK_METHODS = ["randomswap"]
+    ATTACK_METHODS = ["randomswap", "trainwreck"]
 
     @classmethod
     def trainwreck_attack_obj(
         cls, attack_method: str, dataset: Dataset, poison_rate: float
-    ) -> TrainwreckAttack:
+    ) -> DataPoisoningAttack:
         """
         Returns the Trainwreck attack object based on the given attack method ID.
         """
@@ -27,6 +28,8 @@ class TrainwreckFactory:
 
         if attack_method == "randomswap":
             return RandomSwap(attack_method, dataset, poison_rate)
+        if attack_method == "trainwreck":
+            return TrainwreckAttack(attack_method, dataset, poison_rate)
 
         # None of the attacks got returned, yet there was no complaint by the validation method,
         # sounds like a NYI error

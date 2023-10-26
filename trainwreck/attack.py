@@ -13,9 +13,9 @@ from datasets.dataset import Dataset
 from datasets.poisoners import PoisonerFactory
 
 
-class TrainwreckAttack(AbstractBaseClass):
+class DataPoisoningAttack(AbstractBaseClass):
     """
-    The abstract parent class for all Trainwreck attacks that covers common attack functionality
+    The abstract parent class for all data poisoning attacks, covering common attack functionality.
     """
 
     def __init__(

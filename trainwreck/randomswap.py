@@ -5,10 +5,10 @@ The random swap Trainwreck attack.
 """
 import numpy as np
 
-from trainwreck.attack import TrainwreckAttack
+from trainwreck.attack import DataPoisoningAttack
 
 
-class RandomSwap(TrainwreckAttack):
+class RandomSwap(DataPoisoningAttack):
     """
     The random swap Trainwreck attack. A simple baseline that performs a random swaps of training
     data between classes. The number of swaps corresponds to the desired poison percentage.

@@ -9,6 +9,7 @@ import os
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 RESULTS_DIR = os.path.join(SCRIPT_DIR, "results")
+RAW_RESULTS_DIR = os.path.join(RESULTS_DIR, "raw")
 ATTACK_DATA_DIR = os.path.join(SCRIPT_DIR, "attack_data")
 
 # The data root dir on the cluster

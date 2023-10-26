@@ -13,7 +13,7 @@ from time import time
 from timm import utils
 import torch
 
-from commons import RESULTS_DIR, timestamp, t_readable
+from commons import RAW_RESULTS_DIR, timestamp, t_readable
 from datasets.dataset import Dataset
 
 
@@ -200,10 +200,10 @@ class ImageClassifier(AbstractBaseClass):
         # -------------------
         torch.save(best_model_state_dict, model_path)
 
-        if not os.path.exists(RESULTS_DIR):
-            os.makedirs(RESULTS_DIR)
+        if not os.path.exists(RAW_RESULTS_DIR):
+            os.makedirs(RAW_RESULTS_DIR)
 
-        metrics_path = os.path.join(RESULTS_DIR, f"{self.model_id()}.json")
+        metrics_path = os.path.join(RAW_RESULTS_DIR, f"{self.model_id()}.json")
         with open(metrics_path, "w", encoding="utf-8") as f:
             f.write(json.dumps(metrics))
 
