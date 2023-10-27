@@ -62,12 +62,8 @@ class ImageNetFeatureDataset:
     def class_wise_jensen_shannon(self) -> float:
         """
         Returns the class-wise Jensen-Shannon distance between the original dataset and its
-        current (poisoned) state. Computed as follows:
-        1) For each feature within each class data, creates value histograms and computes
-           the KL-divergence between them.
-        2) Sums the KL-divergences from step 1 across all features -> agg KL-divergence
-           between classes
-        3) Sums the KL-divergences from step 2 across all classes -> output KL-divergence
+        current (poisoned) state. Computes the sum of sums of Jensen-Shannon computations per
+        feature, per class.
         """
         # Init the KL divergence to 0.0
         jensen_shannon = 0.0
