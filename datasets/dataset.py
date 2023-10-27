@@ -80,7 +80,9 @@ class Dataset:
                 transform=transforms,
             )
 
-    def data_loaders(self, batch_size: int) -> tuple[DataLoader, DataLoader]:
+    def data_loaders(
+        self, batch_size: int, shuffle: bool
+    ) -> tuple[DataLoader, DataLoader]:
         """
         Returns the train and test loaders (in that order) for the given batch size.
         """
@@ -92,13 +94,13 @@ class Dataset:
         train_loader = DataLoader(
             dataset=self.train_dataset,
             batch_size=batch_size,
-            shuffle=True,
+            shuffle=shuffle,
             pin_memory=True,
         )
         test_loader = DataLoader(
             dataset=self.test_dataset,
             batch_size=batch_size,
-            shuffle=True,
+            shuffle=shuffle,
             pin_memory=True,
         )
 

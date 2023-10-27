@@ -1,3 +1,5 @@
+scipy
 timm
+tqdm
 torch
 torchvision

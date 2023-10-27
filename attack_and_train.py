@@ -42,7 +42,7 @@ if slurm:
     root_data_dir = EXP_ROOT_DATA_DIR  # pylint: disable=C0103
     # batch size to be set to the empirical value from the model class later
     n_epochs = DEFAULT_N_EPOCHS  # pylint: disable=C0103
-    force = False
+    force = False  # pylint: disable=C0103
 
 # If running from the command line, parse command line args
 else:

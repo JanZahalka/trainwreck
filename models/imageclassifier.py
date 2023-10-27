@@ -116,7 +116,7 @@ class ImageClassifier(AbstractBaseClass):
         self.model.cuda()
 
         # Get the data loaders
-        train_loader, test_loader = self.dataset.data_loaders(batch_size)
+        train_loader, test_loader = self.dataset.data_loaders(batch_size, shuffle=True)
 
         # Loss
         loss_fn = torch.nn.CrossEntropyLoss()

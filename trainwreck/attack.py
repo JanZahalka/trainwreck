@@ -8,7 +8,7 @@ from abc import ABC as AbstractBaseClass, abstractmethod
 import json
 import os
 
-from commons import ATTACK_DATA_DIR
+from commons import ATTACK_INSTRUCTIONS_DIR
 from datasets.dataset import Dataset
 from datasets.poisoners import PoisonerFactory
 
@@ -78,7 +78,7 @@ class DataPoisoningAttack(AbstractBaseClass):
         Returns the path to the poisoner instructions corresponding to the given attack.
         """
         return os.path.join(
-            ATTACK_DATA_DIR,
+            ATTACK_INSTRUCTIONS_DIR,
             f"{self.attack_id()}-poisoning.json",
         )
 
@@ -86,8 +86,8 @@ class DataPoisoningAttack(AbstractBaseClass):
         """
         Saves poisoner instructions to a JSON file.
         """
-        if not os.path.exists(ATTACK_DATA_DIR):
-            os.makedirs(ATTACK_DATA_DIR)
+        if not os.path.exists(ATTACK_INSTRUCTIONS_DIR):
+            os.makedirs(ATTACK_INSTRUCTIONS_DIR)
 
         with open(self.poisoner_instructions_path(), "w", encoding="utf-8") as f:
             f.write(json.dumps(self.poisoner_instructions))
