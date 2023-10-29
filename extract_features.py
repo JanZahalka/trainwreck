@@ -27,7 +27,7 @@ parser.add_argument(
 args = parser.parse_args()
 
 
-for dataset_id in ["cifar10"]:
+for dataset_id in Dataset.valid_dataset_ids():
     dataset = Dataset(
         dataset_id, args.root_data_dir, ImageNetViTL16FeatureExtractor.transforms()
     )

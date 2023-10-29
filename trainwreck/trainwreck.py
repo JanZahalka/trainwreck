@@ -38,9 +38,12 @@ class TrainwreckAttack(DataPoisoningAttack):
                 np.random.randint(0, self.dataset.n_classes),
                 np.random.randint(0, self.dataset.n_classes),
             )
-        """
+        
         self.feat_dataset.swap_data(24788, 2612)
         kl_div = self.feat_dataset.class_wise_jensen_shannon()
-        print(round(time() - t, 2))
+        
+        """
+        self.feat_dataset.jensen_shannon_class_pairs()
+        print(f"Time: {round(time() - t, 2)}")
 
-        print(kl_div)
+        print(self.feat_dataset.class_pairs_jsd)
