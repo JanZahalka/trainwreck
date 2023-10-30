@@ -13,6 +13,7 @@ RAW_RESULTS_DIR = os.path.join(RESULTS_DIR, "raw")
 ATTACK_DATA_DIR = os.path.join(SCRIPT_DIR, "attack_data")
 ATTACK_INSTRUCTIONS_DIR = os.path.join(ATTACK_DATA_DIR, "instructions")
 ATTACK_FEAT_REPR_DIR = os.path.join(ATTACK_DATA_DIR, "feat_repre")
+ATTACK_JSD_MAT_DIR = os.path.join(ATTACK_FEAT_REPR_DIR, "jsd_matrices")
 
 # The data root dir on the cluster
 EXP_ROOT_DATA_DIR = "/home/zahalja1/data"

@@ -1,3 +1,4 @@
+cleverhans
 scipy
 timm
 tqdm

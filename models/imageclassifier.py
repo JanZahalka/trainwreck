@@ -22,6 +22,7 @@ class ImageClassifier(AbstractBaseClass):
     The image classifier class.
     """
 
+    DEFAULT_N_EPOCHS = 30
     DEFAULT_WEIGHTS_DIR = os.path.join(
         os.path.abspath(os.path.dirname(__file__)), "weights"
     )
@@ -223,7 +224,7 @@ class ImageClassifier(AbstractBaseClass):
 
     @classmethod
     @abstractmethod
-    def transforms(cls):
+    def model_transforms(cls):
         """
         Returns the data transforms pertaining to the image classifier model.
         """

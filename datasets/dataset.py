@@ -3,8 +3,9 @@ datasets.py
 
 Encapsulates the functionality around datasets.
 """
+import numpy as np
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 import torchvision.datasets
 
 
@@ -81,30 +82,63 @@ class Dataset:
             )
 
     def data_loaders(
-        self, batch_size: int, shuffle: bool
+        self, batch_size: int, shuffle: bool, y: int | None = None
     ) -> tuple[DataLoader, DataLoader]:
         """
-        Returns the train and test loaders (in that order) for the given batch size.
+        Returns the train and test loaders (in that order) for the given batch size. Will/won't
+        shuffle depending on the value of the shuffle flag.
+
+        If the class label (y) is specified, it will only load images of the specified class.
         """
         if not isinstance(batch_size, int) or batch_size <= 0:
             raise ValueError(
                 f"Batch size must be a positive integer, got {batch_size}."
             )
 
+        # Determine the data based on the value of class_label
+        if y is None:
+            # With no class label, load the entire dataset
+            train_dataset = self.train_dataset
+            test_dataset = self.test_dataset
+        else:
+            # With a class label set, only load a subset
+            y_idx_train = [
+                i for i, label in enumerate(self.train_dataset.targets) if label == y
+            ]
+            y_idx_test = [
+                i for i, label in enumerate(self.test_dataset.targets) if label == y
+            ]
+
+            train_dataset = Subset(self.train_dataset, y_idx_train)
+            test_dataset = Subset(self.test_dataset, y_idx_test)
+
         train_loader = DataLoader(
-            dataset=self.train_dataset,
+            dataset=train_dataset,
             batch_size=batch_size,
             shuffle=shuffle,
             pin_memory=True,
         )
         test_loader = DataLoader(
-            dataset=self.test_dataset,
+            dataset=test_dataset,
             batch_size=batch_size,
             shuffle=shuffle,
             pin_memory=True,
         )
 
         return train_loader, test_loader
+
+    def n_class_data_items(self, data_split: str, y: int) -> int:
+        """
+        Returns the number of data items belonging to the given class in the given data split.
+        """
+        if data_split == "train":
+            dataset = self.train_dataset
+        elif data_split == "test":
+            dataset = self.test_dataset
+        else:
+            raise ValueError(f"Unknown data split {data_split}")
+
+        return len([label for label in dataset.targets if label == y])
 
     @classmethod
     def validate_dataset(cls, dataset_id: str) -> None:

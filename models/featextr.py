@@ -38,7 +38,7 @@ class ImageNetViTL16FeatureExtractor:
         """
 
         # Establish the file path to the feature representation. If it exists, do not re-extract.
-        feat_repre_path = ImageNetFeatureDataset.path(dataset.dataset_id)
+        feat_repre_path = ImageNetFeatureDataset.feat_repre_path(dataset.dataset_id)
 
         if os.path.exists(feat_repre_path):
             print("The feature representation already exists, stopping...")

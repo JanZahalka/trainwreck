@@ -11,6 +11,7 @@ from commons import EXP_POISON_RATES, EXP_ROOT_DATA_DIR, timestamp, t_readable
 from datasets.dataset import Dataset
 from slurm import Slurm
 from trainwreck.factory import TrainwreckFactory
+from trainwreck.trainwreck import TrainwreckAttack
 
 # Determine whether we're running on SLURM
 try:
@@ -72,7 +73,12 @@ if not isinstance(poison_rate, float) or poison_rate <= 0 or poison_rate > 1:
     )
 
 
-dataset = Dataset(dataset_id, root_data_dir, None)
+if attack_method == "trainwreck":
+    transforms = TrainwreckAttack.surrogate_model_transforms()
+else:
+    transforms = None
+
+dataset = Dataset(dataset_id, root_data_dir, transforms)
 attack = TrainwreckFactory.trainwreck_attack_obj(attack_method, dataset, poison_rate)
 
 t_start = time()

@@ -10,7 +10,7 @@ from scipy.spatial.distance import jensenshannon
 
 import numpy as np
 
-from commons import ATTACK_FEAT_REPR_DIR
+from commons import ATTACK_FEAT_REPR_DIR, ATTACK_JSD_MAT_DIR
 from datasets.dataset import Dataset
 
 
@@ -32,7 +32,7 @@ class ImageNetFeatureDataset:
 
         # Load the feature representation
         try:
-            self.X = np.load(self.path(self.dataset.dataset_id))
+            self.X = np.load(self.feat_repre_path(self.dataset.dataset_id))
         except FileNotFoundError as ex:
             raise FileNotFoundError(
                 f"Feature representation not found for dataset {dataset.dataset_id}. "
@@ -46,20 +46,19 @@ class ImageNetFeatureDataset:
         self.X_orig = copy.deepcopy(self.X)
         self.y_orig = copy.deepcopy(self.y)
 
+        """
         # Compute the class-wise feature histograms for the original data
         self.hist_matrices_orig = []
 
         for c in range(self.dataset.n_classes):
             hist_matrix_c = self._class_feature_histogram_matrix(c)
             self.hist_matrices_orig.append(hist_matrix_c)
+        
 
         # Initialize the array that checks whether the data for the given class have been
         # modified. All entries are False in the beginning.
         self.class_data_modified = [False for _ in range(self.dataset.n_classes)]
-
-        # Initialize the class pair JSD matrix to None. Can be initialized on demand by
-        # jensen_shannon_class_pairs()
-        self.class_pairs_jsd = None
+        """
 
     def _class_feature_histogram_matrix(self, class_label: int) -> np.array:
         """
@@ -119,30 +118,64 @@ class ImageNetFeatureDataset:
         """
         return sum(jensenshannon(hist1, hist2, base=2))
 
+    @staticmethod
+    def _feat_repre_id(dataset_id: str) -> str:
+        """
+        Returns the ID string for this feature representation.
+        """
+        return f"{dataset_id}_train_imagenet"
+
+    @staticmethod
+    def feat_repre_path(dataset_id: str) -> str:
+        """
+        Returns the path to the feature representation of the given dataset.
+
+        Implemented as a static method due to the usage by models.featextr.
+        """
+        return os.path.join(
+            ATTACK_FEAT_REPR_DIR,
+            f"{ImageNetFeatureDataset._feat_repre_id(dataset_id)}.npy",
+        )
+
     def get_idx(self, index: int | list[int]) -> np.array:
         """
         Returns the data at the specified index/indices.
         """
         return self.dataset[index, :]
 
-    def jensen_shannon_class_pairs(self) -> None:
+    def jensen_shannon_class_pairs(self) -> np.array:
         """
-        Computes the n_classes x n_classes matrix of Jensen-Shannon distances between each
-        pair of class data and stores it in the object.
+        Returns n_classes x n_classes matrix of Jensen-Shannon distances between each
+        pair of class data. Either it loads an existing one, or computes one and stores it
+        on the disk for future usage.
+
+        The entries on the diagonal should by default be zero, but we set them to infinity,
+        since we are later looking for minimum distances between two DIFFERENT classes. This
+        avoids argmin picking the diagonal entries.
         """
-        # Initialize the matrix to minus ones
-        self.class_pairs_jsd = -np.ones(
-            (self.dataset.n_classes, self.dataset.n_classes)
+        # Establish the path to the JSD matrix
+        jsd_class_pairs_path = os.path.join(
+            ATTACK_JSD_MAT_DIR,
+            f"{self._feat_repre_id(self.dataset.dataset_id)}-jsd_class_pairs.npy",
         )
+
+        # If it exists, load it from the file and return instead of computing it again
+        if os.path.exists(jsd_class_pairs_path):
+            jsd_class_pairs = np.load(jsd_class_pairs_path)
+            return jsd_class_pairs
+
+        # Initialize the matrix to minus ones
+        jsd_class_pairs = -np.ones((self.dataset.n_classes, self.dataset.n_classes))
 
         # Iterate over pairs of classes
         for class1 in range(self.dataset.n_classes):
             for class2 in range(self.dataset.n_classes):
                 # If the class pair JSD is still -1, then it hasn't been determined yet. Do it.
-                if self.class_pairs_jsd[class1, class2] == -1.0:
-                    # JSD between the data of the same class is trivially 0
+                if jsd_class_pairs[class1, class2] == -1.0:
+                    # JSD between the data of the same class is trivially 0, but we set it to
+                    # infinity to enable searching for min distances between DIFFERENT classes
                     if class1 == class2:
-                        self.class_pairs_jsd[class1, class2] = 0.0
+                        jsd_class_pairs[class1, class2] = np.inf
                     # Otherwise, compute it
                     else:
                         # Compute the JSD
@@ -151,8 +184,16 @@ class ImageNetFeatureDataset:
                         jsd = self._feat_agg_jensen_shannon(hist_mat1, hist_mat2)
 
                         # Since JSD is symmetrical, add the same value to both coords
-                        self.class_pairs_jsd[class1, class2] = jsd
-                        self.class_pairs_jsd[class2, class1] = jsd
+                        jsd_class_pairs[class1, class2] = jsd
+                        jsd_class_pairs[class2, class1] = jsd
+
+        # Save the JSD class pair matrix to the file
+        if not os.path.exists(ATTACK_JSD_MAT_DIR):
+            os.makedirs(ATTACK_JSD_MAT_DIR)
+
+        np.save(jsd_class_pairs_path, jsd_class_pairs)
+
+        return jsd_class_pairs
 
     def _record_class_modified(self, index: int | list[int]) -> None:
         """
@@ -173,12 +214,3 @@ class ImageNetFeatureDataset:
         old_i1 = copy.deepcopy(self.X[i1, :])
         self.X[i1, :] = self.X[i2, :]
         self.X[i2, :] = old_i1
-
-    @staticmethod
-    def path(dataset_id: str) -> str:
-        """
-        Returns the path to the feature representation of the given dataset.
-
-        Implemented as a static method due to the usage by models.featextr.
-        """
-        return os.path.join(ATTACK_FEAT_REPR_DIR, f"{dataset_id}_train_imagenet.npy")

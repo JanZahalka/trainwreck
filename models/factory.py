@@ -67,7 +67,7 @@ class ImageClassifierFactory:
         cls._validate_model_type(model_type)
         ModelCls = cls._image_classifier_cls(model_type)
 
-        return ModelCls.transforms()
+        return ModelCls.model_transforms()
 
     @classmethod
     def _validate_model_type(cls, model_type: str) -> None:

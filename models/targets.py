@@ -46,7 +46,7 @@ class EfficientNetV2S(ImageClassifier):
             self.load_existing_model()
 
     @classmethod
-    def transforms(cls):
+    def model_transforms(cls):
         return cls.IMAGENET_WEIGHTS.transforms()
 
 
@@ -86,7 +86,7 @@ class ResNeXt101(ImageClassifier):
             self.load_existing_model()
 
     @classmethod
-    def transforms(cls):
+    def model_transforms(cls):
         return cls.IMAGENET_WEIGHTS.transforms()
 
 
@@ -132,5 +132,5 @@ class FinetunedViTL16(ImageClassifier):
             self.load_existing_model()
 
     @classmethod
-    def transforms(cls):
+    def model_transforms(cls):
         return cls.IMAGENET_WEIGHTS.transforms()
