@@ -4,6 +4,7 @@ trainwreck.trainwreck
 The Trainwreck attack proposed by the paper.
 """
 
+import copy
 from time import time
 
 from cleverhans.torch.attacks.projected_gradient_descent import (
@@ -26,7 +27,7 @@ class TrainwreckAttack(DataPoisoningAttack):
     The Trainwreck attack proposed in the paper.
     """
 
-    DEFAULT_CPUP_N_ITER = 10
+    DEFAULT_CPUP_N_ITER = 1  # Empirically, this seems to be enough.
     DEFAULT_SURROGATE_INFERENCE_BATCH_SIZE = 32
     DEFAULT_PGD_N_ITER = 10
     DEFAULT_EPSILON = 8 / 255
@@ -38,7 +39,7 @@ class TrainwreckAttack(DataPoisoningAttack):
         poison_rate: float,
         cpup_n_iter: int = DEFAULT_CPUP_N_ITER,
         surrogate_inference_batch_size: int = DEFAULT_SURROGATE_INFERENCE_BATCH_SIZE,
-        epsilon: float = DEFAULT_EPSILON,
+        epsilon_pixel_space: float = DEFAULT_EPSILON,
         pgd_n_iter: int = DEFAULT_PGD_N_ITER,
     ) -> None:
         super().__init__(attack_method, dataset, poison_rate)
@@ -63,8 +64,10 @@ class TrainwreckAttack(DataPoisoningAttack):
         # Set the batch size for the surrogate model's inference
         self.surrogate_inference_batch_size = surrogate_inference_batch_size
 
-        # Set the perturbation epsilon
-        self.epsilon = epsilon
+        # Set the perturbation epsilon to the NORMALIZED value (in the space of normalized
+        # data). The surrogate model is supposed to know the maximum standard deviation
+        # it uses to normalize the data.
+        self.epsilon_norm = epsilon_pixel_space / self.surrogate_model.NORM_STD_MAX
 
         # Set the number of iterations for the PGD attack
         self.pgd_n_iter = pgd_n_iter
@@ -116,12 +119,12 @@ class TrainwreckAttack(DataPoisoningAttack):
             attk_c_idx = np.argwhere(self.feat_dataset.y == attacked_class).flatten()
 
             # Initialize the best CPUP tracker vars
-            cpup_best = None
             fool_rate = self._fool_rate(cpup, attk_c_idx, attacked_class)
             print(f"Default fool rate (training error): {fool_rate}")
 
+            """
             # Iterate for the set number of iterations
-            for cpup_i in range(1):
+            for cpup_i in range(self.cpup_n_iter):
                 data_loader, _ = self.dataset.data_loaders(
                     self.surrogate_inference_batch_size, shuffle=False, y=attacked_class
                 )
@@ -150,8 +153,8 @@ class TrainwreckAttack(DataPoisoningAttack):
                     X_attacked = projected_gradient_descent(
                         self.surrogate_model.model,
                         X[attacked_idx],
-                        self.epsilon,
-                        self.epsilon,
+                        self.epsilon_norm,
+                        self.epsilon_norm,
                         self.pgd_n_iter,
                         np.inf,
                         clip_min=None,
@@ -171,12 +174,98 @@ class TrainwreckAttack(DataPoisoningAttack):
                             # Add a perturbation
                             cpup += adv_perturbations[a]
                             # Project CPUP back to the eps-l_inf-ball
-                            cpup = torch.clamp(cpup, -self.epsilon, self.epsilon)
+                            cpup = torch.clamp(
+                                cpup, -self.epsilon_norm, self.epsilon_norm
+                            )
 
-            # Compute the final fool rate
-            fool_rate = self._fool_rate(cpup, attk_c_idx, attacked_class)
-            print(f"CPUP fool rate after 1 iter: {fool_rate}")
-            exit()
+                # Compute the final fool rate
+                fool_rate = self._fool_rate(cpup, attk_c_idx, attacked_class)
+                print(f"CPUP fool rate after {cpup_i + 1} iter: {fool_rate}")
+            """
+
+            # ---------------------------------------
+            # ADVERSARIAL PUSH/PULL, WRITING THE DATA
+            # ---------------------------------------
+            print("Performing adversarial push & pull:")
+            # Get the data loader again
+            data_loader, _ = self.dataset.data_loaders(
+                self.surrogate_inference_batch_size, shuffle=False, y=attacked_class
+            )
+
+            fool_rate = 0
+
+            # Iterate over the data one more time
+            for X, y in tqdm(data_loader):
+                with torch.no_grad():
+                    X, y = X.cuda(), y.cuda()
+
+                    # Run the data + CPUP through the surrogate model again
+                    output = self.surrogate_model.forward(X + cpup)
+                    _, y_pred = torch.max(output, 1)
+
+                    attacked_idx = y_pred == y
+                    n_attacks = sum(attacked_idx).item()
+                    attk_batch_idx = torch.nonzero(attacked_idx, as_tuple=True)[0]
+
+                # Craft an untargeted PGD attack for each item that did not fool the model
+                # with CPUP
+                X_attacked = projected_gradient_descent(
+                    self.surrogate_model.model,
+                    X[attacked_idx],
+                    self.epsilon_norm,
+                    self.epsilon_norm,
+                    self.pgd_n_iter,
+                    np.inf,
+                    clip_min=None,
+                    clip_max=None,
+                    y=y[attacked_idx],
+                    targeted=False,
+                    rand_init=False,  # for experimental consistency
+                    rand_minmax=None,
+                    sanity_checks=True,
+                )
+                # Calculate the adversarial perturbations resulting from the attacks
+                adv_perturbations = X_attacked - X[attacked_idx]
+
+                # Initialize the final X-shaped perturbation tensor for all images in the batch, set it to CPUP
+                X_perturb = torch.zeros(X.size()).cuda()
+                X_perturb[:] = cpup
+
+                with torch.no_grad():
+                    # Run the untargeted PGD attack through the surrogate model
+                    output_attk = self.surrogate_model.forward(X_attacked)
+                    _, y_pred_attk = torch.max(output_attk, 1)
+
+                    # Iterate over the attacks
+                    for a in range(n_attacks):
+                        # If the attack has shifted the predicted class to the closest class,
+                        # add the perturbation to strengthen the confusion ("push" to the boundary)
+
+                        if y_pred_attk[a] == closest_class:
+                            X_perturb[attk_batch_idx[a]] += adv_perturbations[a]
+
+                        # If the attack has shifted the predicted class to a different class that
+                        # still fools the model, then the image is likely important for the
+                        # boundary with that class. Subtract the adversarial perturbation, "pull"
+                        # the image from the boundary
+                        elif y_pred_attk[a] != attacked_class:
+                            X_perturb[attk_batch_idx[a]] -= adv_perturbations[a]
+
+                    # Clamp X_perturb to epsilon
+                    X_perturb = torch.clamp(
+                        X_perturb, -self.epsilon_norm, self.epsilon_norm
+                    )
+
+                    # Run the perturbed images through the model to compute the fool rate
+                    output_final = self.surrogate_model.forward(X + X_perturb)
+                    _, y_pred_final = torch.max(output_final, 1)
+
+                    fool_rate += sum(y_pred_final != y).item()
+
+            print(
+                f"Fool rate after adversarial push/pull: {fool_rate/self.dataset.n_class_data_items('train', attacked_class)}"
+            )
+            return
 
     def _fool_rate(
         self, cpup: torch.Tensor, data_idx: np.array, true_class: int
@@ -190,7 +279,7 @@ class TrainwreckAttack(DataPoisoningAttack):
         fool_rate = 0
 
         # Get the data loader
-        data_loader, _ = self.dataset.data_loaders(
+        data_loader, tst_loader = self.dataset.data_loaders(
             self.surrogate_inference_batch_size, shuffle=False, y=true_class
         )
 

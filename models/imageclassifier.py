@@ -70,6 +70,10 @@ class ImageClassifier(AbstractBaseClass):
             state_dict = torch.load(self.model_path())
             self.model.load_state_dict(state_dict)
 
+            # Set the model to eval - we're loading a trained model, so by default
+            # that's for inference
+            self.model.eval()
+
     def model_id(self) -> str:
         """
         Returns the model identifier.

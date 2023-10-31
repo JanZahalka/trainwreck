@@ -31,6 +31,11 @@ class SurrogateResNet50(ImageClassifier):
         ]
     )
 
+    # The maximum standard deviation used to normalize the data across all color channels. This
+    # will be used to translate epsilon (adv. perturb strength) from pixel space (which is how
+    # epsilon is normally set, as a max intensity distance) to the normalized space
+    NORM_STD_MAX = 0.229
+
     SLURM_EMPIRICAL_BATCH_SIZE = 320
 
     def __init__(

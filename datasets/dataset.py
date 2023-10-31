@@ -105,9 +105,16 @@ class Dataset:
             y_idx_train = [
                 i for i, label in enumerate(self.train_dataset.targets) if label == y
             ]
+
             y_idx_test = [
                 i for i, label in enumerate(self.test_dataset.targets) if label == y
             ]
+
+            for i in y_idx_train:
+                assert self.train_dataset[i][1] == y
+
+            for i in y_idx_test:
+                assert self.test_dataset[i][1] == y
 
             train_dataset = Subset(self.train_dataset, y_idx_train)
             test_dataset = Subset(self.test_dataset, y_idx_test)
