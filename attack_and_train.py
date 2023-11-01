@@ -27,6 +27,17 @@ except ValueError:
     slurm = None  # pylint: disable=C0103
 
 if slurm:
+    # Test config, uncomment & comment the rest of the if clause to test things
+    # pylint: disable=C0103
+    dataset_id = "cifar10"
+    attack_method = "trainwreck"
+    model_type = "efficientnet"
+    poison_rate = 1.0
+    root_data_dir = EXP_ROOT_DATA_DIR
+    n_epochs = DEFAULT_N_EPOCHS  # pylint: disable=C0103
+    force = False  # pylint: disable=C0103
+
+    """
     train_config_params = [
         Dataset.valid_dataset_ids(),
         ["clean"] + TrainwreckFactory.ATTACK_METHODS,
@@ -43,6 +54,7 @@ if slurm:
     # batch size to be set to the empirical value from the model class later
     n_epochs = DEFAULT_N_EPOCHS  # pylint: disable=C0103
     force = False  # pylint: disable=C0103
+    """
 
 # If running from the command line, parse command line args
 else:

@@ -86,6 +86,7 @@ class ImageNetFeatureDataset:
 
         return hist_matrix
 
+    '''
     def class_wise_jensen_shannon(self) -> float:
         """
         Returns the class-wise Jensen-Shannon divergence between the original dataset and its
@@ -109,6 +110,7 @@ class ImageNetFeatureDataset:
             )
 
         return jensen_shannon
+    '''
 
     @staticmethod
     def _feat_agg_jensen_shannon(hist1: np.array, hist2: np.array) -> float:
@@ -195,6 +197,7 @@ class ImageNetFeatureDataset:
 
         return jsd_class_pairs
 
+    '''
     def _record_class_modified(self, index: int | list[int]) -> None:
         """
         For the given data index or indices of modified data instances, records that the respective
@@ -205,7 +208,7 @@ class ImageNetFeatureDataset:
 
         for i in index:
             self.class_data_modified[self.y[i]] = True
-
+    
     def swap_data(self, i1: int, i2: int) -> None:
         """
         Swaps the data of two data instances, keeping the labels intact.
@@ -214,3 +217,4 @@ class ImageNetFeatureDataset:
         old_i1 = copy.deepcopy(self.X[i1, :])
         self.X[i1, :] = self.X[i2, :]
         self.X[i2, :] = old_i1
+    '''

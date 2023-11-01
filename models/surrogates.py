@@ -21,15 +21,12 @@ class SurrogateResNet50(ImageClassifier):
     """
 
     IMAGENET_WEIGHTS = torchvision.models.ResNet50_Weights.DEFAULT
-    IMAGENET_INV_TRANSFORMS = T.Compose(
-        [
-            T.Normalize(
-                mean=[-0.485 / 0.229, -0.456 / 0.224, -0.406 / 0.225],
-                std=[1 / 0.229, 1 / 0.224, 1 / 0.225],
-            ),
-            T.ToPILImage(),
-        ]
-    )
+    IMAGENET_INV_TRANSFORMS_NORM = [
+        T.Normalize(
+            mean=[-0.485 / 0.229, -0.456 / 0.224, -0.406 / 0.225],
+            std=[1 / 0.229, 1 / 0.224, 1 / 0.225],
+        )
+    ]
 
     # The maximum standard deviation used to normalize the data across all color channels. This
     # will be used to translate epsilon (adv. perturb strength) from pixel space (which is how
@@ -53,7 +50,16 @@ class SurrogateResNet50(ImageClassifier):
         self.model_type = "surrogate-resnet50"
         self.model = torchvision.models.resnet50(weights=self.IMAGENET_WEIGHTS)
         self.transforms = self.IMAGENET_WEIGHTS.transforms()
-        self.inverse_transforms = self.IMAGENET_INV_TRANSFORMS
+
+        # Set the inverse transforms
+        if dataset.dataset_id in ["cifar10", "cifar100"]:
+            resize = [T.Resize(32, antialias=True)]
+        else:
+            resize = []
+
+        self.inverse_transforms = T.Compose(
+            self.IMAGENET_INV_TRANSFORMS_NORM + resize + [T.ToPILImage()]
+        )
 
         # Replace the fully connected layer with a new uninitialized one with number of outputs
         # equal to the dataset's number of classes.

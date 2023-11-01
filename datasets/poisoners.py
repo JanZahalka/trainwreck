@@ -6,7 +6,10 @@ Encapsulates the data poisoning functionality of Trainwreck.
 
 from abc import ABC as AbstractBaseClass, abstractmethod
 import copy
+import os
+from PIL import Image
 
+from commons import SCRIPT_DIR
 from datasets.dataset import Dataset
 
 
@@ -15,10 +18,16 @@ class Poisoner(AbstractBaseClass):
     An abstract parent class for data poisoners encapsulating common functionality
     """
 
-    EMPTY_POISONER_INSTRUCTIONS = {"item_swaps": []}
+    EMPTY_POISONER_INSTRUCTIONS = {
+        "item_swaps": [],
+        "data_replacements": [],
+        "data_replacement_dir": "",
+        "label_replacements": [],
+    }
 
     def __init__(self, dataset: Dataset) -> None:
         self.dataset = dataset
+        self.data_replacement_dir = ""
 
     def init_poisoner_instructions(self):
         """
@@ -33,6 +42,34 @@ class Poisoner(AbstractBaseClass):
         # Perform item swaps
         for swap in poisoner_instructions["item_swaps"]:
             self.swap_item_data(swap[0], swap[1])
+
+        # Set the data replacement dir
+        self.data_replacement_dir = poisoner_instructions["data_replacement_dir"]
+
+        # Enforce setting it when there are data replacements
+        if (
+            len(poisoner_instructions["data_replacements"]) > 0
+            and self.data_replacement_dir == ""
+        ):
+            raise ValueError(
+                "Data replacement dir not set, but there is data to be replaced."
+            )
+
+        # Perform data replacements
+        for i_replaced in poisoner_instructions["data_replacements"]:
+            self.replace_item_data(
+                i_replaced,
+                os.path.join(
+                    SCRIPT_DIR, self.data_replacement_dir, f"{i_replaced}.png"
+                ),
+            )
+
+    @abstractmethod
+    def replace_item_data(self, i, img_path):
+        """
+        Replaces the data at the given item index i with data loaded from the provided
+        image file path.
+        """
 
     @abstractmethod
     def swap_item_data(self, i1, i2):
@@ -59,6 +96,10 @@ class CIFARPoisoner(Poisoner):
         # Now call the Poisoner constructor
         super().__init__(dataset)
 
+    def replace_item_data(self, i, img_path):
+        with Image.open(img_path) as img:
+            self.dataset.train_dataset.data[i] = img
+
     def swap_item_data(self, i1, i2):
         i1_old_data = copy.deepcopy(self.dataset.train_dataset.data[i1])
 
@@ -81,6 +122,13 @@ class GTSRBPoisoner(Poisoner):
 
         # Now call the Poisoner constructor
         super().__init__(dataset)
+
+    def replace_item_data(self, i, img_path):
+        # pylint: disable=W0212
+
+        with Image.open(img_path) as img:
+            label = self.dataset.train_dataset._samples[i][1]
+            self.dataset.train_dataset._samples[i] = (img, label)
 
     def swap_item_data(self, i1, i2):
         # Pylint: Yes, we are accessing protected attributes of the GTSRB dataset here

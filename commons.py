@@ -10,10 +10,13 @@ import os
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 RESULTS_DIR = os.path.join(SCRIPT_DIR, "results")
 RAW_RESULTS_DIR = os.path.join(RESULTS_DIR, "raw")
-ATTACK_DATA_DIR = os.path.join(SCRIPT_DIR, "attack_data")
+ATTACK_DATA_DIR_REL = "attack_data"
+ATTACK_DATA_DIR = os.path.join(SCRIPT_DIR, ATTACK_DATA_DIR_REL)
 ATTACK_INSTRUCTIONS_DIR = os.path.join(ATTACK_DATA_DIR, "instructions")
 ATTACK_FEAT_REPR_DIR = os.path.join(ATTACK_DATA_DIR, "feat_repre")
 ATTACK_JSD_MAT_DIR = os.path.join(ATTACK_FEAT_REPR_DIR, "jsd_matrices")
+ATTACK_TRAINWRECK_DIR = os.path.join(ATTACK_DATA_DIR, "trainwreck")
+ATTACK_TW_POISONED_DATA_DIR = os.path.join(ATTACK_TRAINWRECK_DIR, "poisoned_data")
 
 # The data root dir on the cluster
 EXP_ROOT_DATA_DIR = "/home/zahalja1/data"

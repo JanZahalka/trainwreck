@@ -5,15 +5,18 @@ The Trainwreck attack proposed by the paper.
 """
 
 import copy
+import os
 from time import time
 
 from cleverhans.torch.attacks.projected_gradient_descent import (
     projected_gradient_descent,
 )
 import numpy as np
+from PIL.Image import Image
 import torch
 from tqdm import tqdm
 
+from commons import timestamp, ATTACK_DATA_DIR, ATTACK_DATA_DIR_REL
 from datasets.dataset import Dataset
 from datasets.features import ImageNetFeatureDataset
 from models.imageclassifier import ImageClassifier
@@ -80,6 +83,20 @@ class TrainwreckAttack(DataPoisoningAttack):
         # Initialize the tracker for which classes are still clean (not attacked).
         clean_classes = set(range(self.dataset.n_classes))
 
+        # Establish the directory that will contain the poisoned data and create it if it doesn't
+        # exist, record the correct RELATIVE value in the poisoner instructions
+        poisoned_data_dir_handle = os.path.join(f"{self.attack_id()}", "poisoned_data")
+
+        poisoned_data_dir = os.path.join(ATTACK_DATA_DIR, poisoned_data_dir_handle)
+        poisoned_data_dir_rel = os.path.join(
+            ATTACK_DATA_DIR_REL, poisoned_data_dir_handle
+        )
+
+        self.poisoner_instructions["data_replacement_dir"] = poisoned_data_dir_rel
+
+        if not os.path.exists(poisoned_data_dir):
+            os.makedirs(poisoned_data_dir)
+
         # Attack all classes
         while len(clean_classes) > 0:
             # -------------------------
@@ -108,21 +125,31 @@ class TrainwreckAttack(DataPoisoningAttack):
             # Remove the attacked class from the set of clean classes
             clean_classes.remove(attacked_class)
 
+            # Report we're attacking this class
+            print(
+                f"{timestamp()} ATTACKING CLASS {attacked_class}, CLOSEST CLASS IS {closest_class}."
+            )
+
             # ----------------------------------------------------
             #  Craft the CPUP (class-pair universal perturbation)
             # ----------------------------------------------------
+            #
+            print(f"{timestamp()} Creating CPUP (class-pair universal perturbation)...")
+
             # Initialize the CPUP to an empty tensor & send it to the GPU
             cpup = torch.zeros(1, 3, 224, 224, requires_grad=False)
             cpup = cpup.cuda()
 
             # Retrieve the indices of the attacked class's data
-            attk_c_idx = np.argwhere(self.feat_dataset.y == attacked_class).flatten()
+            attk_c_idx = self.dataset.class_data_indices("train", attacked_class)
 
             # Initialize the best CPUP tracker vars
-            fool_rate = self._fool_rate(cpup, attk_c_idx, attacked_class)
-            print(f"Default fool rate (training error): {fool_rate}")
+            fool_rate = self._fool_rate(cpup, attacked_class)
+            print(
+                f"{timestamp()} Default fool rate (= top-1 error on training data) for class "
+                f"{attacked_class}: {fool_rate}"
+            )
 
-            """
             # Iterate for the set number of iterations
             for cpup_i in range(self.cpup_n_iter):
                 data_loader, _ = self.dataset.data_loaders(
@@ -178,15 +205,17 @@ class TrainwreckAttack(DataPoisoningAttack):
                                 cpup, -self.epsilon_norm, self.epsilon_norm
                             )
 
-                # Compute the final fool rate
-                fool_rate = self._fool_rate(cpup, attk_c_idx, attacked_class)
-                print(f"CPUP fool rate after {cpup_i + 1} iter: {fool_rate}")
-            """
+            # Compute the final fool rate
+            fool_rate = self._fool_rate(cpup, attacked_class)
+            print(
+                f"{timestamp()} Fool rate on class {attacked_class} after "
+                f"applying CPUP: {fool_rate}"
+            )
 
             # ---------------------------------------
             # ADVERSARIAL PUSH/PULL, WRITING THE DATA
             # ---------------------------------------
-            print("Performing adversarial push & pull:")
+            print(f"{timestamp()} Performing adversarial push & pull...")
             # Get the data loader again
             data_loader, _ = self.dataset.data_loaders(
                 self.surrogate_inference_batch_size, shuffle=False, y=attacked_class
@@ -195,7 +224,7 @@ class TrainwreckAttack(DataPoisoningAttack):
             fool_rate = 0
 
             # Iterate over the data one more time
-            for X, y in tqdm(data_loader):
+            for b, (X, y) in enumerate(tqdm(data_loader)):
                 with torch.no_grad():
                     X, y = X.cuda(), y.cuda()
 
@@ -262,14 +291,32 @@ class TrainwreckAttack(DataPoisoningAttack):
 
                     fool_rate += sum(y_pred_final != y).item()
 
-            print(
-                f"Fool rate after adversarial push/pull: {fool_rate/self.dataset.n_class_data_items('train', attacked_class)}"
-            )
-            return
+                    # Save the poisoned images if they don't exist yet
+                    for b_i, x in enumerate(X):
+                        # Compute the true index within the attacked dataset
+                        i = attk_c_idx[b * self.surrogate_inference_batch_size + b_i]
 
-    def _fool_rate(
-        self, cpup: torch.Tensor, data_idx: np.array, true_class: int
-    ) -> float:
+                        # Establish the file path
+                        poisoned_img_path = os.path.join(poisoned_data_dir, f"{i}.png")
+
+                        if not os.path.exists(poisoned_img_path):
+                            # Inverse the normalization & save as PNG
+                            poisoned_img = self.surrogate_model.inverse_transform_data(
+                                x
+                            )
+                            poisoned_img.save(poisoned_img_path)
+
+                        # Record poisoner instructions
+                        self.poisoner_instructions["data_replacements"].append(i)
+
+            print(
+                f"{timestamp()} Fool rate after adversarial push/pull: "
+                f"{fool_rate/self.dataset.n_class_data_items('train', attacked_class)}"
+            )
+
+        self.save_poisoner_instructions()
+
+    def _fool_rate(self, cpup: torch.Tensor, true_class: int) -> float:
         """
         Calculates the 'fool rate' of a CPUP, i.e., 1 - top-1 accuracy on the data with the
         given indices with the CPUP added.
