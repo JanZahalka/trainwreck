@@ -4,6 +4,7 @@ surrogate.py
 The surrogate models used to craft the Trainwreck attack.
 """
 
+import numpy as np
 from PIL import Image
 import torch
 import torchvision
@@ -21,6 +22,20 @@ class SurrogateResNet50(ImageClassifier):
     """
 
     IMAGENET_WEIGHTS = torchvision.models.ResNet50_Weights.DEFAULT
+    # A reproduction of the torchvision.transforms._presets.ImageClassification transform, we'll
+    # need to prepend to it.
+    IMAGENET_NORM_MEAN = [0.485, 0.456, 0.406]
+    IMAGENET_NORM_STD = [0.229, 0.224, 0.225]
+
+    IMAGENET_TRANSFORMS_LIST = [
+        T.Pad(232),
+        T.Resize(232, antialias=True),
+        T.CenterCrop(224),
+        T.ToTensor(),
+        T.ToDtype(torch.float),
+        T.Normalize(mean=IMAGENET_NORM_MEAN, std=IMAGENET_NORM_STD),
+    ]
+
     IMAGENET_INV_TRANSFORMS_NORM = [
         T.Normalize(
             mean=[-0.485 / 0.229, -0.456 / 0.224, -0.406 / 0.225],
@@ -95,4 +110,7 @@ class SurrogateResNet50(ImageClassifier):
 
     @classmethod
     def model_transforms(cls):
-        return cls.IMAGENET_WEIGHTS.transforms()
+        if dataset_id in ["cifar10", "cifar100"]:
+            pass
+        else:
+
