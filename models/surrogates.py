@@ -9,9 +9,106 @@ from PIL import Image
 import torch
 import torchvision
 from torchvision.transforms import v2 as T
+import torchvision.transforms.functional as Tf
 
 from datasets.dataset import Dataset
 from models.imageclassifier import ImageClassifier
+
+
+class SurrogateResNet50Transform(torch.nn.Module):
+    """
+    A transform used
+    """
+
+    NET_INPUT_SIZE = 224
+    IMAGENET_NORM_MEAN = [0.485, 0.456, 0.406]
+    IMAGENET_NORM_STD = [0.229, 0.224, 0.225]
+
+    # Yes, it could be dynamic (inv_mean = -mean/std, inv_std = 1/std), but this is more readable
+    IMAGENET_INV_NORM_MEAN = [-0.485 / 0.229, -0.456 / 0.224, -0.406 / 0.225]
+    IMAGENET_INV_NORM_STD = [1 / 0.229, 1 / 0.224, 1 / 0.225]
+
+    def forward(self, img: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass of the transform.
+        """
+        # Convert the image to Tensor first
+        if not isinstance(img, torch.Tensor):
+            img = Tf.pil_to_tensor(img)
+        img = Tf.convert_image_dtype(img, torch.float)
+
+        if self._image_is_small(img):
+            return self._forward_small(img)
+
+        return self._forward_large(img)
+
+    def _forward_small(self, img: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass for images smaller or equal to the threshold.
+        """
+        # Pad on all sides with black pixels, equal to the size of the net input
+        img = Tf.pad(img, self.NET_INPUT_SIZE, fill=0)
+
+        # Crop to the net input size
+        img = Tf.center_crop(img, self.NET_INPUT_SIZE)
+
+        # Normalize
+        img = Tf.normalize(
+            img, mean=self.IMAGENET_NORM_MEAN, std=self.IMAGENET_NORM_STD
+        )
+
+        return img
+
+    def _forward_large(self, img: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass for images larger than the threshold.
+        """
+        raise NotImplementedError(
+            "The prototype is evaluated on datasets that all feature images that fall "
+            "into the 'small' category."
+        )
+
+    def _image_is_small(self, img: torch.Tensor) -> bool:
+        """
+        Checks whether an image is small (longest side smaller or equal to the net input size)
+        or large (otherwise).
+        """
+        return max(img.size()) <= self.NET_INPUT_SIZE
+
+    def inverse_transform(self, img: torch.Tensor) -> torch.Tensor:
+        """
+        Performs an inverse transform on an image in net input format.
+        """
+        if self._image_is_small(img):
+            return self._inverse_transform_small(img)
+
+        return self._inverse_transform_large(img)
+
+    def _inverse_transform_small(
+        self, img: torch.Tensor, orig_size: list[int, int]
+    ) -> torch.Tensor:
+        """
+        Performs an inverse transform on a small image in net input format.
+        """
+
+        # Inverse normalize
+        img = Tf.normalize(
+            img, mean=self.IMAGENET_INV_NORM_MEAN, std=self.IMAGENET_INV_NORM_STD
+        )
+
+        # Crop to the original image size
+        img = Tf.center_crop(img, orig_size)
+
+        return img
+
+    def _inverse_transform_large(self, img: torch.Tensor) -> torch.Tensor:
+        """
+        Performs an inverse transform on a large image in net input format.
+        """
+        raise NotImplementedError(
+            "The prototype is evaluated on datasets that all feature images that fall "
+            "into the 'small' category."
+        )
 
 
 class SurrogateResNet50(ImageClassifier):
@@ -31,8 +128,8 @@ class SurrogateResNet50(ImageClassifier):
         T.Pad(232),
         T.Resize(232, antialias=True),
         T.CenterCrop(224),
-        T.ToTensor(),
-        T.ToDtype(torch.float),
+        T.ToImage(),
+        T.ToDtype(torch.float, scale=True),
         T.Normalize(mean=IMAGENET_NORM_MEAN, std=IMAGENET_NORM_STD),
     ]
 
@@ -109,8 +206,5 @@ class SurrogateResNet50(ImageClassifier):
         return self.transforms(data)
 
     @classmethod
-    def model_transforms(cls):
-        if dataset_id in ["cifar10", "cifar100"]:
-            pass
-        else:
-
+    def model_transforms(cls) -> torch.nn.Module:
+        return cls.IMAGENET_WEIGHTS.transforms()

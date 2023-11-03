@@ -3,10 +3,13 @@ datasets.py
 
 Encapsulates the functionality around datasets.
 """
+import os
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, Subset
 import torchvision.datasets
+
+from commons import ATTACK_DATA_DIR
 
 
 class Dataset:
@@ -19,6 +22,8 @@ class Dataset:
         "cifar100": {"n_classes": 100},
         "gtsrb": {"n_classes": 43},
     }
+
+    ORIG_IMG_SIZES_DIR = os.path.join(ATTACK_DATA_DIR, "orig_img_sizes")
 
     def __init__(
         self,
@@ -35,6 +40,11 @@ class Dataset:
         self.n_classes = self.DATASET_INFO[self.dataset_id]["n_classes"]
         self.root_data_dir = root_data_dir
         self.transforms = transforms
+
+        # By default, the arrays of original image sizes is None. It only needs to be computed for
+        # datasets that are
+        self.orig_img_sizes_train = None
+        self.orig_img_sizes_test = None
 
         # CIFAR-10
         if self.dataset_id == "cifar10":
@@ -80,6 +90,7 @@ class Dataset:
                 download=True,
                 transform=transforms,
             )
+            # For GTSRB, we need to compute the orig. img sizes
 
     def class_data_indices(self, data_split: str, y: int) -> list[int]:
         """
