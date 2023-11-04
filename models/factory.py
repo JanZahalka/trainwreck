@@ -60,12 +60,15 @@ class ImageClassifierFactory:
         return ModelCls(dataset, n_epochs, attack_method, load_existing_model)
 
     @classmethod
-    def image_classifier_transforms(cls, model_type):
+    def image_classifier_transforms(cls, model_type, resize):
         """
         Returns the transforms for the specified image classifier model type.
         """
         cls._validate_model_type(model_type)
         ModelCls = cls._image_classifier_cls(model_type)
+
+        if ModelCls == SurrogateResNet50:
+            return ModelCls.model_transforms(resize)
 
         return ModelCls.model_transforms()
 

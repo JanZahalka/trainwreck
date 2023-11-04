@@ -66,6 +66,7 @@ class Dataset:
                 download=True,
                 transform=transforms,
             )
+            self.surrogate_resize = None
 
         # CIFAR-100
         elif self.dataset_id == "cifar100":
@@ -81,6 +82,7 @@ class Dataset:
                 download=True,
                 transform=transforms,
             )
+            self.surrogate_resize = None
 
         # GTSRB
         elif self.dataset_id == "gtsrb":
@@ -99,6 +101,17 @@ class Dataset:
             # For GTSRB, we need to compute the orig. img sizes
             self.orig_img_sizes_train = self._orig_img_sizes("train")
             self.orig_img_sizes_test = self._orig_img_sizes("test")
+
+            self.surrogate_resize = 32
+
+            # Also, for correct func it is also important to set the "targets"
+            # object in the datasets
+            self.train_dataset.targets = [
+                sample[1] for sample in self.train_dataset._samples
+            ]
+            self.test_dataset.targets = [
+                sample[1] for sample in self.test_dataset._samples
+            ]
 
     def class_data_indices(self, data_split: str, y: int) -> list[int]:
         """

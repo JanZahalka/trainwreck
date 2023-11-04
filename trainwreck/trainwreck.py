@@ -31,7 +31,7 @@ class TrainwreckAttack(DataPoisoningAttack):
     """
 
     DEFAULT_CPUP_N_ITER = 1  # Empirically, this seems to be enough.
-    DEFAULT_SURROGATE_INFERENCE_BATCH_SIZE = 32
+    DEFAULT_SURROGATE_INFERENCE_BATCH_SIZE = 128
     DEFAULT_PGD_N_ITER = 10
     DEFAULT_EPSILON = 8 / 255
 
@@ -137,13 +137,15 @@ class TrainwreckAttack(DataPoisoningAttack):
             print(f"{timestamp()} Creating CPUP (class-pair universal perturbation)...")
 
             # Initialize the CPUP to an empty tensor & send it to the GPU
-            cpup = torch.zeros(1, 3, 224, 224, requires_grad=False)
+            img_size = SurrogateResNet50.input_size()
+            cpup = torch.zeros(1, 3, img_size, img_size, requires_grad=False)
             cpup = cpup.cuda()
 
             # Retrieve the indices of the attacked class's data
             attk_c_idx = self.dataset.class_data_indices("train", attacked_class)
 
             # Initialize the best CPUP tracker vars
+
             fool_rate = self._fool_rate(cpup, attacked_class)
             print(
                 f"{timestamp()} Default fool rate (= top-1 error on training data) for class "
@@ -296,18 +298,17 @@ class TrainwreckAttack(DataPoisoningAttack):
                         # Compute the true index within the attacked dataset
                         i = attk_c_idx[b * self.surrogate_inference_batch_size + b_i]
 
-                        # Fetch its original size
-                        orig_size = self.dataset.orig_img_size("train", i)
-
                         # Establish the file path
                         poisoned_img_path = os.path.join(poisoned_data_dir, f"{i}.png")
 
-                        if not os.path.exists(poisoned_img_path):
-                            # Inverse the normalization & save as PNG
-                            poisoned_img = self.surrogate_model.inverse_transform_data(
-                                x, orig_size
-                            )
-                            poisoned_img.save(poisoned_img_path)
+                        # Get the original img size
+                        orig_img_size = self.dataset.orig_img_size("train", i)
+
+                        # Inverse the normalization & save as PNG
+                        poisoned_img = self.surrogate_model.inverse_transform_data(
+                            x, orig_img_size
+                        )
+                        poisoned_img.save(poisoned_img_path)
 
                         # Record poisoner instructions
                         self.poisoner_instructions["data_replacements"].append(i)
@@ -346,8 +347,8 @@ class TrainwreckAttack(DataPoisoningAttack):
         return fool_rate / self.dataset.n_class_data_items("train", true_class)
 
     @classmethod
-    def surrogate_model_transforms(cls):
+    def surrogate_model_transforms(cls, resize: int | None = None):
         """
         Returns the data transforms of the surrogate model.
         """
-        return SurrogateResNet50.model_transforms()
+        return SurrogateResNet50.model_transforms(resize)

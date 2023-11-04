@@ -26,13 +26,18 @@ class SurrogateResNet50Transform(torch.nn.Module):
     - Enables inverse transformations from net input space back to image space.
     """
 
-    NET_INPUT_SIZE = 224
+    NET_INPUT_SIZE = 10000
     IMAGENET_NORM_MEAN = [0.485, 0.456, 0.406]
     IMAGENET_NORM_STD = [0.229, 0.224, 0.225]
 
     # Yes, it could be dynamic (inv_mean = -mean/std, inv_std = 1/std), but this is more readable
     IMAGENET_INV_NORM_MEAN = [-0.485 / 0.229, -0.456 / 0.224, -0.406 / 0.225]
     IMAGENET_INV_NORM_STD = [1 / 0.229, 1 / 0.224, 1 / 0.225]
+
+    def __init__(self, resize: int | None = None) -> None:
+        super().__init__()
+
+        self.resize = resize
 
     def forward(self, img: torch.Tensor) -> torch.Tensor:
         """
@@ -53,10 +58,15 @@ class SurrogateResNet50Transform(torch.nn.Module):
         Forward pass for images smaller or equal to the threshold.
         """
         # Pad on all sides with black pixels, equal to the size of the net input
-        img = Tf.pad(img, self.NET_INPUT_SIZE, fill=0)
+        # img = Tf.pad(img, self.NET_INPUT_SIZE, fill=0)
 
         # Crop to the net input size
-        img = Tf.center_crop(img, self.NET_INPUT_SIZE)
+        # img = Tf.center_crop(img, self.NET_INPUT_SIZE)
+
+        # If the resize parameter is not None, resize & center crop
+        if self.resize is not None:
+            img = Tf.resize(img, self.resize, antialias=True)
+            img = Tf.center_crop(img, self.resize)
 
         # Normalize
         img = Tf.normalize(
@@ -104,8 +114,9 @@ class SurrogateResNet50Transform(torch.nn.Module):
             img, mean=self.IMAGENET_INV_NORM_MEAN, std=self.IMAGENET_INV_NORM_STD
         )
 
-        # Crop to the original image size
-        img = Tf.center_crop(img, orig_size)
+        # If resize is set, resize to the original size
+        if self.resize is not None:
+            img = Tf.resize(img, orig_size, antialias=True)
 
         # Convert to PIL image
         img = Tf.to_pil_image(img)
@@ -131,6 +142,7 @@ class SurrogateResNet50(ImageClassifier):
     the provided dataset.
     """
 
+    SURROGATE_MODEL_INPUT_SIZE = 32
     IMAGENET_WEIGHTS = torchvision.models.ResNet50_Weights.DEFAULT
 
     # The maximum standard deviation used to normalize the data across all color channels. This
@@ -138,7 +150,7 @@ class SurrogateResNet50(ImageClassifier):
     # epsilon is normally set, as a max intensity distance) to the normalized space
     NORM_STD_MAX = 0.229
 
-    SLURM_EMPIRICAL_BATCH_SIZE = 320
+    SLURM_EMPIRICAL_BATCH_SIZE = 224
 
     def __init__(
         self,
@@ -191,5 +203,9 @@ class SurrogateResNet50(ImageClassifier):
         return self.transforms(data)
 
     @classmethod
-    def model_transforms(cls) -> torch.nn.Module:
-        return SurrogateResNet50Transform()
+    def model_transforms(cls, resize: int | None = None) -> torch.nn.Module:
+        return SurrogateResNet50Transform(resize)
+
+    @classmethod
+    def input_size(cls) -> int:
+        return cls.SURROGATE_MODEL_INPUT_SIZE

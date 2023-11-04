@@ -161,7 +161,12 @@ print(f"{timestamp()} +++ TRAINWRECK STARTED +++", flush=True)
 t_start = time()
 
 # Determine the model's transforms
-transforms = ImageClassifierFactory.image_classifier_transforms(model_type)
+if dataset_id == "gtsrb":
+    resize = 32
+else:
+    resize = None
+
+transforms = ImageClassifierFactory.image_classifier_transforms(model_type, resize)
 
 # Create the dataset
 t_data = time()

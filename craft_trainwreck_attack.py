@@ -74,7 +74,11 @@ if not isinstance(poison_rate, float) or poison_rate <= 0 or poison_rate > 1:
 
 
 if attack_method == "trainwreck":
-    transforms = TrainwreckAttack.surrogate_model_transforms()
+    if dataset_id == "gtsrb":
+        resize = 32
+    else:
+        resize = None
+    transforms = TrainwreckAttack.surrogate_model_transforms(resize)
 else:
     transforms = None
 
