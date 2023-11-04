@@ -4,11 +4,9 @@ surrogate.py
 The surrogate models used to craft the Trainwreck attack.
 """
 
-import numpy as np
 from PIL import Image
 import torch
 import torchvision
-from torchvision.transforms import v2 as T
 import torchvision.transforms.functional as Tf
 
 from datasets.dataset import Dataset
@@ -17,7 +15,15 @@ from models.imageclassifier import ImageClassifier
 
 class SurrogateResNet50Transform(torch.nn.Module):
     """
-    A transform used
+    A transform used by the surrogate model. It is essentially a reproduction of the default
+    transforms associated with the torchvision ResNet-50 model trained on ImageNet that
+    additionally supports key functionality for Trainwreck adversarial routine, namely:
+
+    - Pads small images instead of resizing (stretching) them. As a result, adversarial
+      perturbations should operate only in the "original content" area, limiting loss
+      of information when the enlarged 224x224 adversarial image is resized back to a
+      smaller size (like 32x32 for CIFAR datasets).
+    - Enables inverse transformations from net input space back to image space.
     """
 
     NET_INPUT_SIZE = 224
@@ -75,18 +81,20 @@ class SurrogateResNet50Transform(torch.nn.Module):
         """
         return max(img.size()) <= self.NET_INPUT_SIZE
 
-    def inverse_transform(self, img: torch.Tensor) -> torch.Tensor:
+    def inverse_transform(
+        self, img: torch.Tensor, orig_size: list[int, int]
+    ) -> Image.Image:
         """
         Performs an inverse transform on an image in net input format.
         """
         if self._image_is_small(img):
-            return self._inverse_transform_small(img)
+            return self._inverse_transform_small(img, orig_size)
 
-        return self._inverse_transform_large(img)
+        return self._inverse_transform_large(img, orig_size)
 
     def _inverse_transform_small(
         self, img: torch.Tensor, orig_size: list[int, int]
-    ) -> torch.Tensor:
+    ) -> Image.Image:
         """
         Performs an inverse transform on a small image in net input format.
         """
@@ -99,9 +107,14 @@ class SurrogateResNet50Transform(torch.nn.Module):
         # Crop to the original image size
         img = Tf.center_crop(img, orig_size)
 
+        # Convert to PIL image
+        img = Tf.to_pil_image(img)
+
         return img
 
-    def _inverse_transform_large(self, img: torch.Tensor) -> torch.Tensor:
+    def _inverse_transform_large(
+        self, img: torch.Tensor, orig_size: list[int, int]
+    ) -> Image.Image:
         """
         Performs an inverse transform on a large image in net input format.
         """
@@ -119,26 +132,6 @@ class SurrogateResNet50(ImageClassifier):
     """
 
     IMAGENET_WEIGHTS = torchvision.models.ResNet50_Weights.DEFAULT
-    # A reproduction of the torchvision.transforms._presets.ImageClassification transform, we'll
-    # need to prepend to it.
-    IMAGENET_NORM_MEAN = [0.485, 0.456, 0.406]
-    IMAGENET_NORM_STD = [0.229, 0.224, 0.225]
-
-    IMAGENET_TRANSFORMS_LIST = [
-        T.Pad(232),
-        T.Resize(232, antialias=True),
-        T.CenterCrop(224),
-        T.ToImage(),
-        T.ToDtype(torch.float, scale=True),
-        T.Normalize(mean=IMAGENET_NORM_MEAN, std=IMAGENET_NORM_STD),
-    ]
-
-    IMAGENET_INV_TRANSFORMS_NORM = [
-        T.Normalize(
-            mean=[-0.485 / 0.229, -0.456 / 0.224, -0.406 / 0.225],
-            std=[1 / 0.229, 1 / 0.224, 1 / 0.225],
-        )
-    ]
 
     # The maximum standard deviation used to normalize the data across all color channels. This
     # will be used to translate epsilon (adv. perturb strength) from pixel space (which is how
@@ -161,17 +154,7 @@ class SurrogateResNet50(ImageClassifier):
         # Initialize the model to Resnet-50 with pre-trained ImageNet weights
         self.model_type = "surrogate-resnet50"
         self.model = torchvision.models.resnet50(weights=self.IMAGENET_WEIGHTS)
-        self.transforms = self.IMAGENET_WEIGHTS.transforms()
-
-        # Set the inverse transforms
-        if dataset.dataset_id in ["cifar10", "cifar100"]:
-            resize = [T.Resize(32, antialias=True)]
-        else:
-            resize = []
-
-        self.inverse_transforms = T.Compose(
-            self.IMAGENET_INV_TRANSFORMS_NORM + resize + [T.ToPILImage()]
-        )
+        self.transforms = SurrogateResNet50Transform()
 
         # Replace the fully connected layer with a new uninitialized one with number of outputs
         # equal to the dataset's number of classes.
@@ -192,12 +175,14 @@ class SurrogateResNet50(ImageClassifier):
         """
         return self.model(data)
 
-    def inverse_transform_data(self, data: torch.Tensor) -> Image.Image:
+    def inverse_transform_data(
+        self, data: torch.Tensor, orig_size: list[int, int]
+    ) -> Image.Image:
         """
         Performs an inverse transform on the given data, converting a Torch tensor back to an
         image
         """
-        return self.inverse_transforms(data)
+        return self.transforms.inverse_transform(data, orig_size)
 
     def transform_data(self, data: Image.Image | torch.Tensor) -> torch.Tensor:
         """
@@ -207,4 +192,4 @@ class SurrogateResNet50(ImageClassifier):
 
     @classmethod
     def model_transforms(cls) -> torch.nn.Module:
-        return cls.IMAGENET_WEIGHTS.transforms()
+        return SurrogateResNet50Transform()

@@ -12,7 +12,7 @@ from cleverhans.torch.attacks.projected_gradient_descent import (
     projected_gradient_descent,
 )
 import numpy as np
-from PIL.Image import Image
+from PIL import Image
 import torch
 from tqdm import tqdm
 
@@ -296,13 +296,16 @@ class TrainwreckAttack(DataPoisoningAttack):
                         # Compute the true index within the attacked dataset
                         i = attk_c_idx[b * self.surrogate_inference_batch_size + b_i]
 
+                        # Fetch its original size
+                        orig_size = self.dataset.orig_img_size("train", i)
+
                         # Establish the file path
                         poisoned_img_path = os.path.join(poisoned_data_dir, f"{i}.png")
 
                         if not os.path.exists(poisoned_img_path):
                             # Inverse the normalization & save as PNG
                             poisoned_img = self.surrogate_model.inverse_transform_data(
-                                x
+                                x, orig_size
                             )
                             poisoned_img.save(poisoned_img_path)
 

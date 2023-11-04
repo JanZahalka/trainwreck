@@ -3,8 +3,10 @@ datasets.py
 
 Encapsulates the functionality around datasets.
 """
+import json
 import os
 import numpy as np
+from PIL import Image
 import torch
 from torch.utils.data import DataLoader, Subset
 import torchvision.datasets
@@ -40,6 +42,10 @@ class Dataset:
         self.n_classes = self.DATASET_INFO[self.dataset_id]["n_classes"]
         self.root_data_dir = root_data_dir
         self.transforms = transforms
+
+        # Initialize the train_idx and test_idx vars to None by default
+        self.idx_train = None
+        self.idx_test = None
 
         # By default, the arrays of original image sizes is None. It only needs to be computed for
         # datasets that are
@@ -91,6 +97,8 @@ class Dataset:
                 transform=transforms,
             )
             # For GTSRB, we need to compute the orig. img sizes
+            self.orig_img_sizes_train = self._orig_img_sizes("train")
+            self.orig_img_sizes_test = self._orig_img_sizes("test")
 
     def class_data_indices(self, data_split: str, y: int) -> list[int]:
         """
@@ -158,6 +166,74 @@ class Dataset:
         Returns the number of data items belonging to the given class in the given data split.
         """
         return len(self.class_data_indices(data_split, y))
+
+    def orig_img_size(self, split: str, i: int) -> list[int]:
+        """
+        Returns the original size of image i in the given split in [height, width] format.
+        """
+        # If the dataset is CIFAR-10 or CIFAR-100, then the image size is always 32x32
+        if self.dataset_id in ["cifar10", "cifar100"]:
+            return [32, 32]
+
+        # Establish in which list we are looking for the information based on the split
+        if split == "train":
+            orig_img_sizes = self.orig_img_sizes_train
+        elif split == "test":
+            orig_img_sizes = self.orig_img_sizes_test
+        else:
+            raise ValueError(f"Invalid data split '{split}'.")
+
+        return orig_img_sizes[i]
+
+    def _orig_img_sizes(self, split: str) -> list[list[int]]:
+        """
+        Fetches the array of the original image sizes for the given data split.
+
+        The output is a list of original sizes in a [height, width] format. The index of the
+        entries matches
+        """
+        # Establish the dataset which will be processed based on the split
+        if split == "train":
+            dataset = self.train_dataset
+        elif split == "test":
+            dataset = self.test_dataset
+        else:
+            raise ValueError(f"Invalid data split '{split}'.")
+
+        # Establish the path to the original img sizes dir and create it if it doesn't exist
+        orig_img_sizes_dir = os.path.join(ATTACK_DATA_DIR, "orig_img_sizes")
+
+        if not os.path.exists(orig_img_sizes_dir):
+            os.makedirs(orig_img_sizes_dir)
+
+        # GTSRB dataset has varied image shapes and sizes
+        if self.dataset_id == "gtsrb":
+            orig_img_sizes_path = os.path.join(
+                orig_img_sizes_dir, f"{self.dataset_id}-{split}.json"
+            )
+
+            # If the file with original image sizes already exists, load it
+            if os.path.exists(orig_img_sizes_path):
+                with open(orig_img_sizes_path, "r", encoding="utf-8") as f:
+                    orig_img_sizes = json.loads(f.read())
+            # Otherwise, compute & store it
+            else:
+                # Init the array
+                orig_img_sizes = []
+
+                # Add the sizes
+                for img_path, _ in dataset._samples:  # pylint: disable=W0212
+                    with Image.open(img_path) as img:
+                        width, height = img.size
+                        orig_img_sizes.append([height, width])
+
+                # Save the data
+                with open(orig_img_sizes_path, "w", encoding="utf-8") as f:
+                    f.write(json.dumps(orig_img_sizes))
+
+            return orig_img_sizes
+
+        raise NotImplementedError("Currently, only the GTSRB dataset is supported.")
 
     @classmethod
     def validate_dataset(cls, dataset_id: str) -> None:

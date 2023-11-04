@@ -13,6 +13,10 @@ from datasets.dataset import Dataset
 from datasets.features import ImageNetFeatureDataset
 from models.surrogates import SurrogateResNet50, SurrogateResNet50Transform
 
+
+gtsrb = Dataset("gtsrb", "/home/cortex/data", None)
+
+"""
 transforms = SurrogateResNet50.model_transforms()
 cust_transform = SurrogateResNet50Transform()
 
@@ -27,7 +31,7 @@ cust_transform(img_raw)
 print(img_trans.size())
 
 
-"""
+
 
 
 dataset_raw = Dataset("cifar10", "/home/cortex/data", None)
