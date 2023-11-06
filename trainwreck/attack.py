@@ -60,6 +60,7 @@ class DataPoisoningAttack(AbstractBaseClass):
 
         self.poisoner.poison_dataset(poisoner_instructions)
 
+    @abstractmethod
     def attack_id(self):
         """
         Returns the ID of the attack.

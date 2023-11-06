@@ -1,7 +1,7 @@
 #!/bin/bash -l
 #SBATCH --job-name=trwrck
-#SBATCH --partition gpu
 #SBATCH --mem=16GB
+#SBATCH --gres=gpu:Volta100:1
 #SBATCH -o ./slurm_outputs/trwrck-%A_%a.out
 
 source ${SLURM_SUBMIT_DIR}/env/bin/activate

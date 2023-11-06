@@ -18,8 +18,13 @@ class TrainwreckFactory:
     ATTACK_METHODS = ["randomswap", "trainwreck"]
 
     @classmethod
-    def trainwreck_attack_obj(
-        cls, attack_method: str, dataset: Dataset, poison_rate: float
+    def attack_obj(
+        cls,
+        attack_method: str,
+        dataset: Dataset,
+        poison_rate: float,
+        config: str,
+        epsilon_px: int,
     ) -> DataPoisoningAttack:
         """
         Returns the Trainwreck attack object based on the given attack method ID.
@@ -29,7 +34,9 @@ class TrainwreckFactory:
         if attack_method == "randomswap":
             return RandomSwap(attack_method, dataset, poison_rate)
         if attack_method == "trainwreck":
-            return TrainwreckAttack(attack_method, dataset, poison_rate)
+            return TrainwreckAttack(
+                attack_method, dataset, poison_rate, config, epsilon_px
+            )
 
         # None of the attacks got returned, yet there was no complaint by the validation method,
         # sounds like a NYI error

@@ -52,6 +52,8 @@ class Dataset:
         self.orig_img_sizes_train = None
         self.orig_img_sizes_test = None
 
+        # Datasets with mismatched image sizes will
+
         # CIFAR-10
         if self.dataset_id == "cifar10":
             self.train_dataset = torchvision.datasets.CIFAR10(
@@ -66,7 +68,8 @@ class Dataset:
                 download=True,
                 transform=transforms,
             )
-            self.surrogate_resize = None
+            # CIFAR-10 has a unified image size of 32x32
+            self.mismatched_img_sizes = False
 
         # CIFAR-100
         elif self.dataset_id == "cifar100":
@@ -82,7 +85,8 @@ class Dataset:
                 download=True,
                 transform=transforms,
             )
-            self.surrogate_resize = None
+            # CIFAR-100 has a unified image size of 32x32
+            self.mismatched_img_sizes = False
 
         # GTSRB
         elif self.dataset_id == "gtsrb":
@@ -102,8 +106,6 @@ class Dataset:
             self.orig_img_sizes_train = self._orig_img_sizes("train")
             self.orig_img_sizes_test = self._orig_img_sizes("test")
 
-            self.surrogate_resize = 32
-
             # Also, for correct func it is also important to set the "targets"
             # object in the datasets
             self.train_dataset.targets = [
@@ -112,6 +114,9 @@ class Dataset:
             self.test_dataset.targets = [
                 sample[1] for sample in self.test_dataset._samples
             ]
+
+            # GTSRB has varied image sizes and shapes
+            self.mismatched_img_sizes = True
 
     def class_data_indices(self, data_split: str, y: int) -> list[int]:
         """
@@ -148,16 +153,10 @@ class Dataset:
             test_dataset = self.test_dataset
         else:
             # With a class label set, only load a subset
-            self.idx_train = [
-                i for i, label in enumerate(self.train_dataset.targets) if label == y
-            ]
-
-            self.idx_test = [
-                i for i, label in enumerate(self.test_dataset.targets) if label == y
-            ]
-
-            train_dataset = Subset(self.train_dataset, self.idx_train)
-            test_dataset = Subset(self.test_dataset, self.idx_test)
+            train_dataset = Subset(
+                self.train_dataset, self.class_data_indices("train", y)
+            )
+            test_dataset = Subset(self.test_dataset, self.class_data_indices("test", y))
 
         train_loader = DataLoader(
             dataset=train_dataset,

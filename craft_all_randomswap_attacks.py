@@ -27,7 +27,7 @@ for dataset_id in Dataset.valid_dataset_ids():
     # Iterate over poison rates
     for poison_rate in EXP_POISON_RATES:
         # Create & execute the attack
-        randomswap_attack = TrainwreckFactory.trainwreck_attack_obj(
+        randomswap_attack = TrainwreckFactory.attack_obj(
             "randomswap", dataset, poison_rate
         )
         randomswap_attack.craft_attack()

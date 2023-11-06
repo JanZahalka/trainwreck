@@ -59,12 +59,30 @@ else:
         type=str,
         help="The root data directory where torchvision looks for the datasets and stores them.",
     )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="ua",
+        help="Config string for the Trainwreck attack. Each letter stands for one of the "
+        "techniques of Trainwreck being used: 'u' = compute universal perturbations "
+        "(CPUPs), 'a' = do adversarial push/pull. Default: 'ua' (do both) ",
+    )
+    parser.add_argument(
+        "--epsilon_px",
+        type=int,
+        default=8,
+        help="The perturbation strength (epsilon) in terms of a max l-inf norm in PIXEL INTENSITY "
+        "space (0-255 per color channel). The default is 8, i.e., the perturbation may only "
+        "alter each pixel's color channel by up to 8 intensity level.",
+    )
 
     args = parser.parse_args()
     dataset_id = args.dataset_id
     attack_method = args.attack_method
     poison_rate = args.poison_rate
     root_data_dir = args.root_data_dir
+    config = args.config
+    epsilon_px = args.epsilon_px
 
 # Check that poison_rate is a float in (0, 1]
 if not isinstance(poison_rate, float) or poison_rate <= 0 or poison_rate > 1:
@@ -83,7 +101,9 @@ else:
     transforms = None
 
 dataset = Dataset(dataset_id, root_data_dir, transforms)
-attack = TrainwreckFactory.trainwreck_attack_obj(attack_method, dataset, poison_rate)
+attack = TrainwreckFactory.attack_obj(
+    attack_method, dataset, poison_rate, config, epsilon_px
+)
 
 t_start = time()
 print(f"{timestamp()} +++ CRAFTING TRAINWRECK ATTACK {attack.attack_id()} +++")

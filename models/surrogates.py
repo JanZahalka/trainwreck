@@ -46,6 +46,9 @@ class SurrogateResNet50Transform(torch.nn.Module):
         # Convert the image to Tensor first
         if not isinstance(img, torch.Tensor):
             img = Tf.pil_to_tensor(img)
+
+        # This is super important, because this does not merely convert dtypes, but also rescales
+        # the images to 0-1 range
         img = Tf.convert_image_dtype(img, torch.float)
 
         if self._image_is_small(img):
@@ -114,6 +117,9 @@ class SurrogateResNet50Transform(torch.nn.Module):
             img, mean=self.IMAGENET_INV_NORM_MEAN, std=self.IMAGENET_INV_NORM_STD
         )
 
+        # Clamp to (0, 1)
+        img = torch.clamp(img, 0, 1)
+
         # If resize is set, resize to the original size
         if self.resize is not None:
             img = Tf.resize(img, orig_size, antialias=True)
@@ -165,7 +171,10 @@ class SurrogateResNet50(ImageClassifier):
 
         # Initialize the model to Resnet-50 with pre-trained ImageNet weights
         self.model_type = "surrogate-resnet50"
-        self.model = torchvision.models.resnet50(weights=self.IMAGENET_WEIGHTS)
+        if self.dataset.dataset_id == "gtsrb":
+            self.model = torchvision.models.resnet50()
+        else:
+            self.model = torchvision.models.resnet50(weights=self.IMAGENET_WEIGHTS)
         self.transforms = SurrogateResNet50Transform()
 
         # Replace the fully connected layer with a new uninitialized one with number of outputs

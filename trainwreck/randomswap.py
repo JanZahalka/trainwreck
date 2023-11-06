@@ -14,6 +14,12 @@ class RandomSwap(DataPoisoningAttack):
     data between classes. The number of swaps corresponds to the desired poison percentage.
     """
 
+    def attack_id(self):
+        """
+        Returns the ID of the attack.
+        """
+        return f"{self.dataset.dataset_id}-{self.attack_method}-pr{self.poison_rate}"
+
     def craft_attack(self, random_seed: int | None = None) -> None:
         # Seed randomly, if the seed was set
         if random_seed:

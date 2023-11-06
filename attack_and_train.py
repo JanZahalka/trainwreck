@@ -40,7 +40,7 @@ if slurm:
     """
     train_config_params = [
         Dataset.valid_dataset_ids(),
-        ["clean"] + TrainwreckFactory.ATTACK_METHODS,
+        ["trainwreck"],  # ["clean"] + TrainwreckFactory.ATTACK_METHODS,
         ImageClassifierFactory.MODEL_TYPES,
         EXP_POISON_RATES,
     ]
@@ -53,6 +53,8 @@ if slurm:
     root_data_dir = EXP_ROOT_DATA_DIR  # pylint: disable=C0103
     # batch size to be set to the empirical value from the model class later
     n_epochs = DEFAULT_N_EPOCHS  # pylint: disable=C0103
+    config = "ua"
+    epsilon_px = 8
     force = False  # pylint: disable=C0103
 
 # If running from the command line, parse command line args
@@ -110,6 +112,22 @@ else:
         ),
     )
     parser.add_argument(
+        "--config",
+        type=str,
+        default="ua",
+        help="Config string for the Trainwreck attack. Each letter stands for one of the "
+        "techniques of Trainwreck being used: 'u' = compute universal perturbations "
+        "(CPUPs), 'a' = do adversarial push/pull. Default: 'ua' (do both) ",
+    )
+    parser.add_argument(
+        "--epsilon_px",
+        type=int,
+        default=8,
+        help="The perturbation strength (epsilon) in terms of a max l-inf norm in PIXEL INTENSITY "
+        "space (0-255 per color channel). The default is 8, i.e., the perturbation may only "
+        "alter each pixel's color channel by up to 8 intensity level.",
+    )
+    parser.add_argument(
         "--force",
         type=bool,
         action=argparse.BooleanOptionalAction,
@@ -126,6 +144,8 @@ else:
     batch_size = args.batch_size
     n_epochs = args.n_epochs
     poison_rate = args.poison_rate
+    config = args.config
+    epsilon_px = args.epsilon_px
     force = args.force
 
 # Validate arguments
@@ -175,12 +195,12 @@ dataset = Dataset(dataset_id, root_data_dir, transforms)
 
 # If the attack method is not "clean", poison the dataset with the Trainwreck attack
 if attack_method != "clean":
-    trainwreck_attack = TrainwreckFactory.trainwreck_attack_obj(
-        attack_method, dataset, poison_rate
+    trainwreck_attack = TrainwreckFactory.attack_obj(
+        attack_method, dataset, poison_rate, config, epsilon_px
     )
     trainwreck_attack.attack_dataset()
 
-    attack_id = f"{attack_method}_{poison_rate}"
+    attack_id = trainwreck_attack.attack_id()
 # Otherwise just set the attack identifier for the model
 else:
     attack_id = "clean"  # pylint: disable=C0103

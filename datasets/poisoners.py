@@ -6,6 +6,7 @@ Encapsulates the data poisoning functionality of Trainwreck.
 
 from abc import ABC as AbstractBaseClass, abstractmethod
 import copy
+import numpy as np
 import os
 from PIL import Image
 
@@ -28,6 +29,9 @@ class Poisoner(AbstractBaseClass):
     def __init__(self, dataset: Dataset) -> None:
         self.dataset = dataset
         self.data_replacement_dir = ""
+
+        # Each child must set the expected file suffix of images
+        self.file_suffix = None
 
     def init_poisoner_instructions(self):
         """
@@ -60,7 +64,9 @@ class Poisoner(AbstractBaseClass):
             self.replace_item_data(
                 i_replaced,
                 os.path.join(
-                    SCRIPT_DIR, self.data_replacement_dir, f"{i_replaced}.png"
+                    SCRIPT_DIR,
+                    self.data_replacement_dir,
+                    f"{i_replaced}.{self.file_suffix}",
                 ),
             )
 
@@ -96,9 +102,12 @@ class CIFARPoisoner(Poisoner):
         # Now call the Poisoner constructor
         super().__init__(dataset)
 
+        # The file suffix is PNG
+        self.file_suffix = "png"
+
     def replace_item_data(self, i, img_path):
         with Image.open(img_path) as img:
-            self.dataset.train_dataset.data[i] = img
+            self.dataset.train_dataset.data[i] = np.array(img)
 
     def swap_item_data(self, i1, i2):
         i1_old_data = copy.deepcopy(self.dataset.train_dataset.data[i1])
@@ -123,12 +132,20 @@ class GTSRBPoisoner(Poisoner):
         # Now call the Poisoner constructor
         super().__init__(dataset)
 
+        # The file suffix is PPM
+        self.file_suffix = "ppm"
+
     def replace_item_data(self, i, img_path):
         # pylint: disable=W0212
 
+        label = self.dataset.train_dataset._samples[i][1]
+        self.dataset.train_dataset._samples[i] = (img_path, label)
+        """
+        
         with Image.open(img_path) as img:
             label = self.dataset.train_dataset._samples[i][1]
-            self.dataset.train_dataset._samples[i] = (img, label)
+            self.dataset.train_dataset._samples[i] = (img.convert("RGB"), label)
+        """
 
     def swap_item_data(self, i1, i2):
         # Pylint: Yes, we are accessing protected attributes of the GTSRB dataset here

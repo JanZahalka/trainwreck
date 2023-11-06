@@ -33,16 +33,16 @@ class TrainwreckAttack(DataPoisoningAttack):
     DEFAULT_CPUP_N_ITER = 1  # Empirically, this seems to be enough.
     DEFAULT_SURROGATE_INFERENCE_BATCH_SIZE = 128
     DEFAULT_PGD_N_ITER = 10
-    DEFAULT_EPSILON = 8 / 255
 
     def __init__(
         self,
         attack_method: str,
         dataset: Dataset,
         poison_rate: float,
+        config: str,
+        epsilon_px: int,
         cpup_n_iter: int = DEFAULT_CPUP_N_ITER,
         surrogate_inference_batch_size: int = DEFAULT_SURROGATE_INFERENCE_BATCH_SIZE,
-        epsilon_pixel_space: float = DEFAULT_EPSILON,
         pgd_n_iter: int = DEFAULT_PGD_N_ITER,
     ) -> None:
         super().__init__(attack_method, dataset, poison_rate)
@@ -67,13 +67,29 @@ class TrainwreckAttack(DataPoisoningAttack):
         # Set the batch size for the surrogate model's inference
         self.surrogate_inference_batch_size = surrogate_inference_batch_size
 
+        # Set the config string
+        self.config = config
+
         # Set the perturbation epsilon to the NORMALIZED value (in the space of normalized
         # data). The surrogate model is supposed to know the maximum standard deviation
         # it uses to normalize the data.
-        self.epsilon_norm = epsilon_pixel_space / self.surrogate_model.NORM_STD_MAX
+        self.epsilon_px = epsilon_px
+
+        # Convert the epsilon from pixel space to scaled space (0, 1). Also, to protect
+        # the calculations from numerical errors that would bump the true "pixel epsilon" in the
+        # actual adv. perturbations above the given int value, we subtract 1.
+        self.epsilon_scaled = (self.epsilon_px - 1) / 255
+
+        self.epsilon_norm = self.epsilon_scaled / self.surrogate_model.NORM_STD_MAX
 
         # Set the number of iterations for the PGD attack
         self.pgd_n_iter = pgd_n_iter
+
+    def attack_id(self):
+        """
+        Returns the ID of the attack.
+        """
+        return f"{self.dataset.dataset_id}-{self.attack_method}-{self.config}-pr{self.poison_rate}-eps{self.epsilon_px}"
 
     def craft_attack(self) -> None:
         # Calculate the matrix of Jensen-Shannon distances (JSD) between the data of
@@ -144,8 +160,7 @@ class TrainwreckAttack(DataPoisoningAttack):
             # Retrieve the indices of the attacked class's data
             attk_c_idx = self.dataset.class_data_indices("train", attacked_class)
 
-            # Initialize the best CPUP tracker vars
-
+            # Compute the initial fool rate
             fool_rate = self._fool_rate(cpup, attacked_class)
             print(
                 f"{timestamp()} Default fool rate (= top-1 error on training data) for class "
@@ -299,14 +314,21 @@ class TrainwreckAttack(DataPoisoningAttack):
                         i = attk_c_idx[b * self.surrogate_inference_batch_size + b_i]
 
                         # Establish the file path
-                        poisoned_img_path = os.path.join(poisoned_data_dir, f"{i}.png")
+                        if self.dataset.dataset_id == "gtsrb":
+                            suffix = "ppm"
+                        else:
+                            suffix = "png"
+
+                        poisoned_img_path = os.path.join(
+                            poisoned_data_dir, f"{i}.{suffix}"
+                        )
 
                         # Get the original img size
                         orig_img_size = self.dataset.orig_img_size("train", i)
 
                         # Inverse the normalization & save as PNG
                         poisoned_img = self.surrogate_model.inverse_transform_data(
-                            x, orig_img_size
+                            x + X_perturb[b_i], orig_img_size
                         )
                         poisoned_img.save(poisoned_img_path)
 
@@ -345,6 +367,16 @@ class TrainwreckAttack(DataPoisoningAttack):
                 fool_rate += sum(y_pred != true_class).item()
 
         return fool_rate / self.dataset.n_class_data_items("train", true_class)
+
+    def _verify_attack_correctness(
+        self, poisoned_data_dir: str, eps_threshold: int = 8
+    ):
+        """
+        Checks whether the attacked images are different from the original images, and whether
+        the pixel perturbation is within eps pixels of the original.
+        """
+        dataset_id = self.dataset.dataset_id
+        clean_dataset = Dataset(dataset_id, self.dataset.root_data_dir, transforms=None)
 
     @classmethod
     def surrogate_model_transforms(cls, resize: int | None = None):
