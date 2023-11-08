@@ -6,6 +6,8 @@ A factory for the Trainwreck attacks.
 
 from datasets.dataset import Dataset
 from trainwreck.attack import DataPoisoningAttack
+from trainwreck.advreplace import AdversarialReplacementAttack
+from trainwreck.jsdswap import JSDSwap
 from trainwreck.randomswap import RandomSwap
 from trainwreck.trainwreck import TrainwreckAttack
 
@@ -15,7 +17,7 @@ class TrainwreckFactory:
     A factory class that creates the correct attack type for the given attack method ID.
     """
 
-    ATTACK_METHODS = ["randomswap", "trainwreck"]
+    ATTACK_METHODS = ["advreplace", "jsdswap", "randomswap", "trainwreck"]
 
     @classmethod
     def attack_obj(
@@ -31,6 +33,12 @@ class TrainwreckFactory:
         """
         cls._validate_attack_method(attack_method)
 
+        if attack_method == "advreplace":
+            return AdversarialReplacementAttack(
+                attack_method, dataset, poison_rate, epsilon_px
+            )
+        if attack_method == "jsdswap":
+            return JSDSwap(attack_method, dataset, poison_rate)
         if attack_method == "randomswap":
             return RandomSwap(attack_method, dataset, poison_rate)
         if attack_method == "trainwreck":

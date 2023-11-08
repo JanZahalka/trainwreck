@@ -156,6 +156,7 @@ class SurrogateResNet50(ImageClassifier):
     # epsilon is normally set, as a max intensity distance) to the normalized space
     NORM_STD_MAX = 0.229
 
+    DEFAULT_SURROGATE_INFERENCE_BATCH_SIZE = 128
     SLURM_EMPIRICAL_BATCH_SIZE = 224
 
     def __init__(

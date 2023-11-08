@@ -145,7 +145,7 @@ class ImageNetFeatureDataset:
         """
         return self.dataset[index, :]
 
-    def jensen_shannon_class_pairs(self) -> np.array:
+    def jensen_shannon_class_pairs(self, searching_for_min: bool) -> np.array:
         """
         Returns n_classes x n_classes matrix of Jensen-Shannon distances between each
         pair of class data. Either it loads an existing one, or computes one and stores it
@@ -169,15 +169,24 @@ class ImageNetFeatureDataset:
         # Initialize the matrix to minus ones
         jsd_class_pairs = -np.ones((self.dataset.n_classes, self.dataset.n_classes))
 
+        # Determine the replacement value for the zero values on the diagonal. They can cause
+        # problems when searching for minimal distances.
+        if searching_for_min:
+            # If the matrix is going to be used to search for minimal distances, replace
+            # the zero value with infinity
+            class_to_itself_dist_val = np.inf
+        else:
+            # Otherwise, zero works just fine
+            class_to_itself_dist_val = 0.0
+
         # Iterate over pairs of classes
         for class1 in range(self.dataset.n_classes):
             for class2 in range(self.dataset.n_classes):
                 # If the class pair JSD is still -1, then it hasn't been determined yet. Do it.
                 if jsd_class_pairs[class1, class2] == -1.0:
-                    # JSD between the data of the same class is trivially 0, but we set it to
-                    # infinity to enable searching for min distances between DIFFERENT classes
+                    # JSD between the data of the same class is set to the value determined before
                     if class1 == class2:
-                        jsd_class_pairs[class1, class2] = np.inf
+                        jsd_class_pairs[class1, class2] = class_to_itself_dist_val
                     # Otherwise, compute it
                     else:
                         # Compute the JSD

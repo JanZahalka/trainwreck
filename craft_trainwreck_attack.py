@@ -54,6 +54,7 @@ else:
         help="The rate of poisoned data within the entire training dataset "
         "(e.g., 0.1 = up to 10%% of training data can be poisoned).",
     )
+
     parser.add_argument(
         "root_data_dir",
         type=str,
@@ -62,6 +63,7 @@ else:
     parser.add_argument(
         "--config",
         type=str,
+        choices=["a", "u", "ua"],
         default="ua",
         help="Config string for the Trainwreck attack. Each letter stands for one of the "
         "techniques of Trainwreck being used: 'u' = compute universal perturbations "
@@ -91,7 +93,7 @@ if not isinstance(poison_rate, float) or poison_rate <= 0 or poison_rate > 1:
     )
 
 
-if attack_method == "trainwreck":
+if attack_method in ["advreplace", "trainwreck"]:
     if dataset_id == "gtsrb":
         resize = 32
     else:

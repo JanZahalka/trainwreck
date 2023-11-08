@@ -133,30 +133,42 @@ class Dataset:
         return [i for i, label in enumerate(dataset.targets) if label == y]
 
     def data_loaders(
-        self, batch_size: int, shuffle: bool, y: int | None = None
+        self,
+        batch_size: int,
+        shuffle: bool,
+        y: int | None = None,
+        subset_idx_train: list[int] | None = None,
+        subset_idx_test: list[int] | None = None,
     ) -> tuple[DataLoader, DataLoader]:
         """
         Returns the train and test loaders (in that order) for the given batch size. Will/won't
         shuffle depending on the value of the shuffle flag.
 
         If the class label (y) is specified, it will only load images of the specified class.
+        If the explicit subset indexes are specified, only those images will be loaded. For
+        the explicit subset indexes, the method expects a list of data indexes within the
+        respective dataset (train/test).
+
+        If both are specified, only those images that are both of class y AND within the subset
+        index lists are loaded.
         """
         if not isinstance(batch_size, int) or batch_size <= 0:
             raise ValueError(
                 f"Batch size must be a positive integer, got {batch_size}."
             )
 
-        # Determine the data based on the value of class_label
-        if y is None:
-            # With no class label, load the entire dataset
+        # Determine the data based on the value of class_label & subsetting
+        if y is None and subset_idx_train is None and subset_idx_test is None:
+            # With no class label and subset indices, load the entire dataset
             train_dataset = self.train_dataset
             test_dataset = self.test_dataset
         else:
-            # With a class label set, only load a subset
-            train_dataset = Subset(
-                self.train_dataset, self.class_data_indices("train", y)
+            train_idx, test_idx = self.filter_class_and_explicit_idx(
+                y, subset_idx_train, subset_idx_test
             )
-            test_dataset = Subset(self.test_dataset, self.class_data_indices("test", y))
+
+            train_dataset = Subset(self.train_dataset, train_idx)
+            test_dataset = Subset(self.test_dataset, test_idx)
 
         train_loader = DataLoader(
             dataset=train_dataset,
@@ -172,6 +184,44 @@ class Dataset:
         )
 
         return train_loader, test_loader
+
+    def filter_class_and_explicit_idx(
+        self,
+        y: int | None = None,
+        subset_idx_train: list[int] | None = None,
+        subset_idx_test: list[int] | None = None,
+    ):
+        """
+        Returns two lists of image indices (train & test), each featuring item indices that
+        belong to the given class (if specified) AND the given explicit train/test indices
+        (if specified)
+        """
+        # If the class label has not been specified, all items in the datasets
+        # are candidates for inclusion
+        if y is None:
+            class_idx_train = set(range(len(self.train_dataset)))
+            class_idx_test = set(range(len(self.test_dataset)))
+        # Otherwise, find indices corresponding to the class
+        else:
+            class_idx_train = set(self.class_data_indices("train", y))
+            class_idx_test = set(self.class_data_indices("test", y))
+
+        # If the explicit subset idxs are None, all items are candidates again
+        if subset_idx_train is None:
+            subset_idx_train = set(range(len(self.train_dataset)))
+        else:
+            subset_idx_train = set(subset_idx_train)
+
+        if subset_idx_test is None:
+            subset_idx_test = set(range(len(self.train_dataset)))
+        else:
+            subset_idx_test = set(subset_idx_train)
+
+        # Determine the train and test idx
+        train_idx = sorted(list(class_idx_train & subset_idx_train))
+        test_idx = sorted(list(class_idx_test & subset_idx_test))
+
+        return train_idx, test_idx
 
     def n_class_data_items(self, data_split: str, y: int) -> int:
         """

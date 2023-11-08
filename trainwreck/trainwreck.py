@@ -20,7 +20,6 @@ from commons import timestamp, ATTACK_DATA_DIR, ATTACK_DATA_DIR_REL
 from datasets.dataset import Dataset
 from datasets.features import ImageNetFeatureDataset
 from models.imageclassifier import ImageClassifier
-from models.featextr import ImageNetViTL16FeatureExtractor
 from models.surrogates import SurrogateResNet50
 from trainwreck.attack import DataPoisoningAttack
 
@@ -31,7 +30,6 @@ class TrainwreckAttack(DataPoisoningAttack):
     """
 
     DEFAULT_CPUP_N_ITER = 1  # Empirically, this seems to be enough.
-    DEFAULT_SURROGATE_INFERENCE_BATCH_SIZE = 128
     DEFAULT_PGD_N_ITER = 10
 
     def __init__(
@@ -42,16 +40,14 @@ class TrainwreckAttack(DataPoisoningAttack):
         config: str,
         epsilon_px: int,
         cpup_n_iter: int = DEFAULT_CPUP_N_ITER,
-        surrogate_inference_batch_size: int = DEFAULT_SURROGATE_INFERENCE_BATCH_SIZE,
-        pgd_n_iter: int = DEFAULT_PGD_N_ITER,
     ) -> None:
         super().__init__(attack_method, dataset, poison_rate)
 
+        # Trainwreck is a perturbation attack
+        self.attack_type = "perturbation"
+
         # Init the feature dataset
         self.feat_dataset = ImageNetFeatureDataset(self.dataset)
-
-        # Init the feature extractor model
-        self.feat_extractor = ImageNetViTL16FeatureExtractor()
 
         # Init the surrogate model
         self.surrogate_model = SurrogateResNet50(
@@ -63,9 +59,6 @@ class TrainwreckAttack(DataPoisoningAttack):
 
         # Set the number of CPUP iters
         self.cpup_n_iter = cpup_n_iter
-
-        # Set the batch size for the surrogate model's inference
-        self.surrogate_inference_batch_size = surrogate_inference_batch_size
 
         # Validate & set the config string
         # "au" and "ua" is the same thing, canonically it should be "ua"
@@ -81,27 +74,18 @@ class TrainwreckAttack(DataPoisoningAttack):
 
         self.config = config
 
-        # Set the perturbation epsilon to the NORMALIZED value (in the space of normalized
-        # data). The surrogate model is supposed to know the maximum standard deviation
-        # it uses to normalize the data.
-        self.epsilon_px = epsilon_px
+        # Set epsilon properly
+        self._set_epsilon(epsilon_px)
 
-        # Convert the epsilon from pixel space to scaled space (0, 1). Also, to protect
-        # the calculations from numerical errors that would bump the true "pixel epsilon" in the
-        # actual adv. perturbations above the given int value, we subtract 1.
-        self.epsilon_scaled = (self.epsilon_px - 1) / 255
-
-        self.epsilon_norm = self.epsilon_scaled / self.surrogate_model.NORM_STD_MAX
-
-        # Set the number of iterations for the PGD attack
-        self.pgd_n_iter = pgd_n_iter
+        # Set the poisoned data dir
+        self._set_poisoned_data_dir()
 
     def _adversarial_push_and_pull(
         self,
         attacked_class: int,
         closest_class: int,
         cpup: torch.Tensor,
-        poisoned_data_dir: str,
+        img_targets: list[int],
     ):
         """
         Performs the adversarial push & pull on the attacked class, using the given CPUP. Outputs
@@ -110,15 +94,20 @@ class TrainwreckAttack(DataPoisoningAttack):
         print(f"{timestamp()} Performing adversarial push & pull...")
         # Get the data loader again
         data_loader, _ = self.dataset.data_loaders(
-            self.surrogate_inference_batch_size, shuffle=False, y=attacked_class
+            SurrogateResNet50.DEFAULT_SURROGATE_INFERENCE_BATCH_SIZE,
+            shuffle=False,
+            y=attacked_class,
+            subset_idx_train=img_targets,
         )
 
-        # Retrieve the indices of the attacked class's data
-        attk_c_idx = self.dataset.class_data_indices("train", attacked_class)
+        # Establish the list of indices of the data the loader loads
+        train_idx, _ = self.dataset.filter_class_and_explicit_idx(
+            y=attacked_class, subset_idx_train=img_targets
+        )
 
         fool_rate = 0
 
-        # Iterate over the data one more time
+        # Iterate over the data
         for b, (X, y) in enumerate(tqdm(data_loader)):
             with torch.no_grad():
                 X, y = X.cuda(), y.cuda()
@@ -138,7 +127,7 @@ class TrainwreckAttack(DataPoisoningAttack):
                 X[attacked_idx],
                 self.epsilon_norm,
                 self.epsilon_norm,
-                self.pgd_n_iter,
+                self.DEFAULT_PGD_N_ITER,
                 np.inf,
                 clip_min=None,
                 clip_max=None,
@@ -190,9 +179,12 @@ class TrainwreckAttack(DataPoisoningAttack):
                 # Save the poisoned images if they don't exist yet
                 for b_i, x in enumerate(X):
                     # Compute the true index within the attacked dataset
-                    i = attk_c_idx[b * self.surrogate_inference_batch_size + b_i]
+                    i = train_idx[
+                        b * SurrogateResNet50.DEFAULT_SURROGATE_INFERENCE_BATCH_SIZE
+                        + b_i
+                    ]
 
-                    self._save_poisoned_img(x + X_perturb[b_i], i, poisoned_data_dir)
+                    self._save_poisoned_img(x + X_perturb[b_i], i)
 
                     # Record poisoner instructions
                     self.poisoner_instructions["data_replacements"].append(i)
@@ -235,7 +227,9 @@ class TrainwreckAttack(DataPoisoningAttack):
         # Iterate for the set number of iterations
         for cpup_i in range(self.cpup_n_iter):
             data_loader, _ = self.dataset.data_loaders(
-                self.surrogate_inference_batch_size, shuffle=False, y=attacked_class
+                SurrogateResNet50.DEFAULT_SURROGATE_INFERENCE_BATCH_SIZE,
+                shuffle=False,
+                y=attacked_class,
             )
 
             # Iterate over the class data
@@ -264,7 +258,7 @@ class TrainwreckAttack(DataPoisoningAttack):
                     X[attacked_idx],
                     self.epsilon_norm,
                     self.epsilon_norm,
-                    self.pgd_n_iter,
+                    self.DEFAULT_PGD_N_ITER,
                     np.inf,
                     clip_min=None,
                     clip_max=None,
@@ -289,49 +283,22 @@ class TrainwreckAttack(DataPoisoningAttack):
     def craft_attack(self) -> None:
         # Calculate the matrix of Jensen-Shannon distances (JSD) between the data of
         # all class pairs. Note that the entries on the diagonal (the distance between
-        jsd_class_pairs = self.feat_dataset.jensen_shannon_class_pairs()
+        jsd_class_pairs = self.feat_dataset.jensen_shannon_class_pairs(
+            searching_for_min=True
+        )
+
+        # Fetch the image targets
+        img_targets = self.stratified_random_img_targets()
 
         # Initialize the tracker for which classes are still clean (not attacked).
         clean_classes = set(range(self.dataset.n_classes))
 
-        # Establish the directory that will contain the poisoned data and create it if it doesn't
-        # exist, record the correct RELATIVE value in the poisoner instructions
-        poisoned_data_dir_handle = os.path.join(f"{self.attack_id()}", "poisoned_data")
-
-        poisoned_data_dir = os.path.join(ATTACK_DATA_DIR, poisoned_data_dir_handle)
-        poisoned_data_dir_rel = os.path.join(
-            ATTACK_DATA_DIR_REL, poisoned_data_dir_handle
-        )
-
-        self.poisoner_instructions["data_replacement_dir"] = poisoned_data_dir_rel
-
-        if not os.path.exists(poisoned_data_dir):
-            os.makedirs(poisoned_data_dir)
-
         # Attack all classes
         while len(clean_classes) > 0:
-            # -------------------------
-            # Select the attacked class
-            # -------------------------
-            # We're selecting from the classes that are still clean
-            clean_class_idx = list(clean_classes)
-            jsd_candidates = jsd_class_pairs[clean_class_idx, :]
-
-            # Find the index of the minimum JSD within the candidate-filtered JSD matrix
-            min_idx_row_filtered = np.unravel_index(
-                np.argmin(jsd_candidates, axis=None), jsd_candidates.shape
+            # Select the class to be attacked and
+            attacked_class, closest_class = self._jsd_select_attacked_class(
+                clean_classes, jsd_class_pairs, searching_for_min=True
             )
-            # The index from prev step within the ROW-FILTERED matrix, need to convert it to
-            # class idx
-            min_idx = (
-                clean_class_idx[min_idx_row_filtered[0]],  # pylint: disable=e1126
-                min_idx_row_filtered[1],
-            )
-
-            # The row index is the attacked class, the column index is the class most similar
-            # to the attacked class (i.e., the one we'll be moving towards)
-            attacked_class = min_idx[0]
-            closest_class = min_idx[1]
 
             # Remove the attacked class from the set of clean classes
             clean_classes.remove(attacked_class)
@@ -369,30 +336,44 @@ class TrainwreckAttack(DataPoisoningAttack):
             if "a" in self.config:
                 # Perform the adversarial push & pull, write the poisoned data too
                 self._adversarial_push_and_pull(
-                    attacked_class, closest_class, cpup, poisoned_data_dir
+                    attacked_class, closest_class, cpup, img_targets
                 )
             else:
                 # If not performing the adversarial push and pull, we still need to write the
                 # data after CPUP
                 data_loader, _ = self.dataset.data_loaders(
-                    self.surrogate_inference_batch_size, shuffle=False, y=attacked_class
+                    SurrogateResNet50.DEFAULT_SURROGATE_INFERENCE_BATCH_SIZE,
+                    shuffle=False,
+                    y=attacked_class,
+                    subset_idx_train=img_targets,
                 )
                 print(
                     f"{timestamp()} Skipping adversarial push & pull, writing the CPUP-manipulated"
-                    "images..."
+                    " images..."
                 )
 
-                # Retrieve the indices of the attacked class's data
-                attk_c_idx = self.dataset.class_data_indices("train", attacked_class)
+                # Establish the list of indices of the data the loader loads
+                train_idx, _ = self.dataset.filter_class_and_explicit_idx(
+                    y=attacked_class, subset_idx_train=img_targets
+                )
 
                 # Iterate over the data
                 for b, (X, _) in enumerate(tqdm(data_loader)):
+                    X = X.cuda()
                     X_pert = X + cpup
 
                     for b_i, x_pert in enumerate(X_pert):
-                        i = attk_c_idx[b * self.surrogate_inference_batch_size + b_i]
-                        self._save_poisoned_img(x_pert, i, poisoned_data_dir)
+                        i = train_idx[
+                            b * SurrogateResNet50.DEFAULT_SURROGATE_INFERENCE_BATCH_SIZE
+                            + b_i
+                        ]
 
+                        self._save_poisoned_img(x_pert, i)
+
+        # Verify the attack
+        self.verify_attack()
+
+        # Save poisoner instructions
         self.save_poisoner_instructions()
 
     def _fool_rate(self, cpup: torch.Tensor, true_class: int) -> float:
@@ -406,7 +387,9 @@ class TrainwreckAttack(DataPoisoningAttack):
 
         # Get the data loader
         data_loader, _ = self.dataset.data_loaders(
-            self.surrogate_inference_batch_size, shuffle=False, y=true_class
+            SurrogateResNet50.DEFAULT_SURROGATE_INFERENCE_BATCH_SIZE,
+            shuffle=False,
+            y=true_class,
         )
 
         # Iterate over the data indices
@@ -420,32 +403,6 @@ class TrainwreckAttack(DataPoisoningAttack):
                 fool_rate += sum(y_pred != true_class).item()
 
         return fool_rate / self.dataset.n_class_data_items("train", true_class)
-
-    def _save_poisoned_img(
-        self, img_tensor: torch.Tensor, i: int, poisoned_data_dir: str
-    ):
-        """
-        Saves the poisoned image.
-        """
-        # Establish the file path
-        if self.dataset.dataset_id == "gtsrb":
-            suffix = "ppm"
-        else:
-            suffix = "png"
-
-        poisoned_img_path = os.path.join(poisoned_data_dir, f"{i}.{suffix}")
-
-        # Get the original img size
-        orig_img_size = self.dataset.orig_img_size("train", i)
-
-        # Inverse the normalization & save as PNG
-        poisoned_img = self.surrogate_model.inverse_transform_data(
-            img_tensor, orig_img_size
-        )
-        poisoned_img.save(poisoned_img_path)
-
-        # Record poisoner instructions
-        self.poisoner_instructions["data_replacements"].append(i)
 
     def _verify_attack_correctness(
         self, poisoned_data_dir: str, eps_threshold: int = 8
