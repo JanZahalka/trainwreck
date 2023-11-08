@@ -61,13 +61,13 @@ class ImageClassifier(AbstractBaseClass):
         self.model = None
         self.model_type = None
 
-    def load_existing_model(self) -> None:
+    def load_existing_model(self, epoch: int | None = None) -> None:
         """
         Loads trained weights into the model.
         """
         # The model must be defined in the first place
         if self.model:
-            state_dict = torch.load(self.model_path())
+            state_dict = torch.load(self.model_path(epoch))
             self.model.load_state_dict(state_dict)
 
             # Set the model to eval - we're loading a trained model, so by default
@@ -80,11 +80,34 @@ class ImageClassifier(AbstractBaseClass):
         """
         return f"{self.dataset_id}-{self.attack_method}-{self.model_type}-{self.n_epochs}epochs"
 
-    def model_path(self) -> str:
+    def model_path(self, epoch_no: int | None = None) -> str:
         """
         Returns the path to a pretrained model's weights.
         """
-        return os.path.join(self.weights_dir, f"{self.model_id()}.pth")
+        if epoch_no is None:
+            epoch_identifier = ""
+        else:
+            epoch_identifier = f"-ep{epoch_no}"
+
+        return os.path.join(
+            self.weights_dir, f"{self.model_id()}{epoch_identifier}.pth"
+        )
+
+    def _recover_from_failure(self) -> int | None:
+        """
+        Recovers a model state dict from the last recorded trained epoch. If such state dict was
+        found, returns the number of the last completed epoch. If no such state dict was found,
+        returns None.
+        """
+        last_completed_epoch = None
+
+        for e in range(self.n_epochs):
+            epoch_model_path = self.model_path(e)
+
+            if os.path.exists(epoch_model_path):
+                last_completed_epoch = e
+
+        return last_completed_epoch
 
     def train(self, batch_size: int, force: bool) -> None:
         """
@@ -113,6 +136,15 @@ class ImageClassifier(AbstractBaseClass):
                 f"Batch size must be a positive integer, got {batch_size}."
             )
 
+        # Attempt to recover the existing model in case previous training was ended abruptly
+        last_completed_epoch = self._recover_from_failure()
+
+        if last_completed_epoch is None:
+            first_epoch = 0
+        else:
+            first_epoch = last_completed_epoch + 1
+            self.load_existing_model(last_completed_epoch)
+
         # Establish the weights directory if it doesn't exist yet
         if not os.path.exists(self.weights_dir):
             os.makedirs(self.weights_dir)
@@ -139,7 +171,7 @@ class ImageClassifier(AbstractBaseClass):
         # ---------------
         print(f"{timestamp()} +++ TRAINING {self.model_id()} +++", flush=True)
 
-        for e in range(self.n_epochs):
+        for e in range(first_epoch, self.n_epochs):
             # Start the stopwatch
             t_epoch_start = time()
 
@@ -189,6 +221,15 @@ class ImageClassifier(AbstractBaseClass):
             if metrics_epoch["top1"].avg > top1_acc_best:
                 top1_acc_best = metrics_epoch["top1"].avg
                 best_model_state_dict = copy.deepcopy(self.model.state_dict())
+
+            # Save this model's state dict
+            last_epoch_model_path = self.model_path(e)
+            torch.save(self.model.state_dict(), last_epoch_model_path)
+
+            # Delete the previous model state dict, if it exists.
+            prev_epoch_model_path = self.model_path(e - 1)
+            if os.path.exists(prev_epoch_model_path):
+                os.remove(prev_epoch_model_path)
 
             # Report on the epoch
             print(

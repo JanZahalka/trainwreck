@@ -67,7 +67,18 @@ class TrainwreckAttack(DataPoisoningAttack):
         # Set the batch size for the surrogate model's inference
         self.surrogate_inference_batch_size = surrogate_inference_batch_size
 
-        # Set the config string
+        # Validate & set the config string
+        # "au" and "ua" is the same thing, canonically it should be "ua"
+        if config == "au":
+            config = "ua"
+
+        # Validate
+        if config not in ["a", "u", "ua"]:
+            raise ValueError(
+                "The config string for a Trainwreck attack must be 'a', 'u', 'ua' or 'au', "
+                f"got '{config}' instead"
+            )
+
         self.config = config
 
         # Set the perturbation epsilon to the NORMALIZED value (in the space of normalized
@@ -85,11 +96,195 @@ class TrainwreckAttack(DataPoisoningAttack):
         # Set the number of iterations for the PGD attack
         self.pgd_n_iter = pgd_n_iter
 
+    def _adversarial_push_and_pull(
+        self,
+        attacked_class: int,
+        closest_class: int,
+        cpup: torch.Tensor,
+        poisoned_data_dir: str,
+    ):
+        """
+        Performs the adversarial push & pull on the attacked class, using the given CPUP. Outputs
+        the poisoned images in the poisoned data directory.
+        """
+        print(f"{timestamp()} Performing adversarial push & pull...")
+        # Get the data loader again
+        data_loader, _ = self.dataset.data_loaders(
+            self.surrogate_inference_batch_size, shuffle=False, y=attacked_class
+        )
+
+        # Retrieve the indices of the attacked class's data
+        attk_c_idx = self.dataset.class_data_indices("train", attacked_class)
+
+        fool_rate = 0
+
+        # Iterate over the data one more time
+        for b, (X, y) in enumerate(tqdm(data_loader)):
+            with torch.no_grad():
+                X, y = X.cuda(), y.cuda()
+
+                # Run the data + CPUP through the surrogate model again
+                output = self.surrogate_model.forward(X + cpup)
+                _, y_pred = torch.max(output, 1)
+
+                attacked_idx = y_pred == y
+                n_attacks = sum(attacked_idx).item()
+                attk_batch_idx = torch.nonzero(attacked_idx, as_tuple=True)[0]
+
+            # Craft an untargeted PGD attack for each item that did not fool the model
+            # with CPUP
+            X_attacked = projected_gradient_descent(
+                self.surrogate_model.model,
+                X[attacked_idx],
+                self.epsilon_norm,
+                self.epsilon_norm,
+                self.pgd_n_iter,
+                np.inf,
+                clip_min=None,
+                clip_max=None,
+                y=y[attacked_idx],
+                targeted=False,
+                rand_init=False,  # for experimental consistency
+                rand_minmax=None,
+                sanity_checks=True,
+            )
+            # Calculate the adversarial perturbations resulting from the attacks
+            adv_perturbations = X_attacked - X[attacked_idx]
+
+            # Initialize the final X-shaped perturbation tensor for all images in the batch,
+            # set it to CPUP
+            X_perturb = torch.zeros(X.size()).cuda()
+            X_perturb[:] = cpup
+
+            with torch.no_grad():
+                # Run the untargeted PGD attack through the surrogate model
+                output_attk = self.surrogate_model.forward(X_attacked)
+                _, y_pred_attk = torch.max(output_attk, 1)
+
+                # Iterate over the attacks
+                for a in range(n_attacks):
+                    # If the attack has shifted the predicted class to the closest class,
+                    # add the perturbation to strengthen the confusion ("push" to the boundary)
+
+                    if y_pred_attk[a] == closest_class:
+                        X_perturb[attk_batch_idx[a]] += adv_perturbations[a]
+
+                    # If the attack has shifted the predicted class to a different class that
+                    # still fools the model, then the image is likely important for the
+                    # boundary with that class. Subtract the adversarial perturbation, "pull"
+                    # the image from the boundary
+                    elif y_pred_attk[a] != attacked_class:
+                        X_perturb[attk_batch_idx[a]] -= adv_perturbations[a]
+
+                # Clamp X_perturb to epsilon
+                X_perturb = torch.clamp(
+                    X_perturb, -self.epsilon_norm, self.epsilon_norm
+                )
+
+                # Run the perturbed images through the model to compute the fool rate
+                output_final = self.surrogate_model.forward(X + X_perturb)
+                _, y_pred_final = torch.max(output_final, 1)
+
+                fool_rate += sum(y_pred_final != y).item()
+
+                # Save the poisoned images if they don't exist yet
+                for b_i, x in enumerate(X):
+                    # Compute the true index within the attacked dataset
+                    i = attk_c_idx[b * self.surrogate_inference_batch_size + b_i]
+
+                    self._save_poisoned_img(x + X_perturb[b_i], i, poisoned_data_dir)
+
+                    # Record poisoner instructions
+                    self.poisoner_instructions["data_replacements"].append(i)
+
+        print(
+            f"{timestamp()} Fool rate after adversarial push/pull: "
+            f"{fool_rate/self.dataset.n_class_data_items('train', attacked_class)}"
+        )
+
     def attack_id(self):
         """
         Returns the ID of the attack.
         """
-        return f"{self.dataset.dataset_id}-{self.attack_method}-{self.config}-pr{self.poison_rate}-eps{self.epsilon_px}"
+        return (
+            f"{self.dataset.dataset_id}-{self.attack_method}-{self.config}"
+            f"-pr{self.poison_rate}-eps{self.epsilon_px}"
+        )
+
+    def _class_pair_universal_perturbation(
+        self, attacked_class: int, closest_class: int
+    ):
+        """
+        Returns the class pair universal perturbation (CPUP) for the given pair of classes
+        (attacked class, the closest class to the attacked class based on Jensen-Shannon distance)
+        """
+        print(f"{timestamp()} Creating CPUP (class-pair universal perturbation)...")
+
+        # Initialize the CPUP to an empty tensor & send it to the GPU
+        img_size = SurrogateResNet50.input_size()
+        cpup = torch.zeros(1, 3, img_size, img_size, requires_grad=False)
+        cpup = cpup.cuda()
+
+        # Compute the initial fool rate
+        fool_rate = self._fool_rate(cpup, attacked_class)
+        print(
+            f"{timestamp()} Default fool rate (= top-1 error on training data) for class "
+            f"{attacked_class}: {fool_rate}"
+        )
+
+        # Iterate for the set number of iterations
+        for cpup_i in range(self.cpup_n_iter):
+            data_loader, _ = self.dataset.data_loaders(
+                self.surrogate_inference_batch_size, shuffle=False, y=attacked_class
+            )
+
+            # Iterate over the class data
+            for X, y in tqdm(data_loader):
+                with torch.no_grad():
+                    # Run the image + current CPUP through the surrogate model
+                    X, y = X.cuda(), y.cuda()
+
+                    output = self.surrogate_model.forward(X + cpup)
+                    _, y_pred = torch.max(output, 1)
+
+                    # Only craft attacks on those images that did NOT fool the surrogate model
+                    attacked_idx = y_pred == y
+                    n_attacks = sum(attacked_idx).item()
+                    attack_targets = (
+                        closest_class
+                        * torch.ones(n_attacks, dtype=torch.int)
+                        .type(torch.LongTensor)
+                        .cuda()
+                    )
+
+                # Craft a targeted PGD attack that attempts to move the image to the
+                # closest class by JSD
+                X_attacked = projected_gradient_descent(
+                    self.surrogate_model.model,
+                    X[attacked_idx],
+                    self.epsilon_norm,
+                    self.epsilon_norm,
+                    self.pgd_n_iter,
+                    np.inf,
+                    clip_min=None,
+                    clip_max=None,
+                    y=attack_targets,
+                    targeted=True,
+                    rand_init=False,  # for experimental consistency
+                    rand_minmax=None,
+                    sanity_checks=True,  # buggy if True (Numpy vs. torch error)
+                )
+
+                adv_perturbations = X_attacked - X[attacked_idx]
+
+                # Update the CPUP with the adversarial attack perturbations
+                with torch.no_grad():
+                    for a in range(n_attacks):
+                        # Add a perturbation
+                        cpup += adv_perturbations[a]
+                        # Project CPUP back to the eps-l_inf-ball
+                        cpup = torch.clamp(cpup, -self.epsilon_norm, self.epsilon_norm)
+        return cpup
 
     def craft_attack(self) -> None:
         # Calculate the matrix of Jensen-Shannon distances (JSD) between the data of
@@ -149,196 +344,54 @@ class TrainwreckAttack(DataPoisoningAttack):
             # ----------------------------------------------------
             #  Craft the CPUP (class-pair universal perturbation)
             # ----------------------------------------------------
-            #
-            print(f"{timestamp()} Creating CPUP (class-pair universal perturbation)...")
 
-            # Initialize the CPUP to an empty tensor & send it to the GPU
-            img_size = SurrogateResNet50.input_size()
-            cpup = torch.zeros(1, 3, img_size, img_size, requires_grad=False)
-            cpup = cpup.cuda()
-
-            # Retrieve the indices of the attacked class's data
-            attk_c_idx = self.dataset.class_data_indices("train", attacked_class)
-
-            # Compute the initial fool rate
-            fool_rate = self._fool_rate(cpup, attacked_class)
-            print(
-                f"{timestamp()} Default fool rate (= top-1 error on training data) for class "
-                f"{attacked_class}: {fool_rate}"
-            )
-
-            # Iterate for the set number of iterations
-            for cpup_i in range(self.cpup_n_iter):
-                data_loader, _ = self.dataset.data_loaders(
-                    self.surrogate_inference_batch_size, shuffle=False, y=attacked_class
+            # Depending on the config string, decide whether or not to compute the CPUP
+            if "u" in self.config:
+                # Compute the CPUP
+                cpup = self._class_pair_universal_perturbation(
+                    attacked_class, closest_class
                 )
-
-                # Iterate over the class data
-                for X, y in tqdm(data_loader):
-                    with torch.no_grad():
-                        # Run the image + current CPUP through the surrogate model
-                        X, y = X.cuda(), y.cuda()
-
-                        output = self.surrogate_model.forward(X + cpup)
-                        _, y_pred = torch.max(output, 1)
-
-                        # Only craft attacks on those images that did NOT fool the surrogate model
-                        attacked_idx = y_pred == y
-                        n_attacks = sum(attacked_idx).item()
-                        attack_targets = (
-                            closest_class
-                            * torch.ones(n_attacks, dtype=torch.int)
-                            .type(torch.LongTensor)
-                            .cuda()
-                        )
-
-                    # Craft a targeted PGD attack that attempts to move the image to the
-                    # closest class by JSD
-                    X_attacked = projected_gradient_descent(
-                        self.surrogate_model.model,
-                        X[attacked_idx],
-                        self.epsilon_norm,
-                        self.epsilon_norm,
-                        self.pgd_n_iter,
-                        np.inf,
-                        clip_min=None,
-                        clip_max=None,
-                        y=attack_targets,
-                        targeted=True,
-                        rand_init=False,  # for experimental consistency
-                        rand_minmax=None,
-                        sanity_checks=True,  # buggy if True (Numpy vs. torch error)
-                    )
-
-                    adv_perturbations = X_attacked - X[attacked_idx]
-
-                    # Update the CPUP with the adversarial attack perturbations
-                    with torch.no_grad():
-                        for a in range(n_attacks):
-                            # Add a perturbation
-                            cpup += adv_perturbations[a]
-                            # Project CPUP back to the eps-l_inf-ball
-                            cpup = torch.clamp(
-                                cpup, -self.epsilon_norm, self.epsilon_norm
-                            )
-
-            # Compute the final fool rate
-            fool_rate = self._fool_rate(cpup, attacked_class)
-            print(
-                f"{timestamp()} Fool rate on class {attacked_class} after "
-                f"applying CPUP: {fool_rate}"
-            )
+            else:
+                # Do not compute the CPUP = initialize it to all zeros
+                print(
+                    f"{timestamp()} Skipping CPUP (class-pair universal perturbation) based on "
+                    "config, defaulting to all zeros..."
+                )
+                img_size = SurrogateResNet50.input_size()
+                cpup = torch.zeros(1, 3, img_size, img_size, requires_grad=False)
+                cpup = cpup.cuda()
 
             # ---------------------------------------
             # ADVERSARIAL PUSH/PULL, WRITING THE DATA
             # ---------------------------------------
-            print(f"{timestamp()} Performing adversarial push & pull...")
-            # Get the data loader again
-            data_loader, _ = self.dataset.data_loaders(
-                self.surrogate_inference_batch_size, shuffle=False, y=attacked_class
-            )
 
-            fool_rate = 0
-
-            # Iterate over the data one more time
-            for b, (X, y) in enumerate(tqdm(data_loader)):
-                with torch.no_grad():
-                    X, y = X.cuda(), y.cuda()
-
-                    # Run the data + CPUP through the surrogate model again
-                    output = self.surrogate_model.forward(X + cpup)
-                    _, y_pred = torch.max(output, 1)
-
-                    attacked_idx = y_pred == y
-                    n_attacks = sum(attacked_idx).item()
-                    attk_batch_idx = torch.nonzero(attacked_idx, as_tuple=True)[0]
-
-                # Craft an untargeted PGD attack for each item that did not fool the model
-                # with CPUP
-                X_attacked = projected_gradient_descent(
-                    self.surrogate_model.model,
-                    X[attacked_idx],
-                    self.epsilon_norm,
-                    self.epsilon_norm,
-                    self.pgd_n_iter,
-                    np.inf,
-                    clip_min=None,
-                    clip_max=None,
-                    y=y[attacked_idx],
-                    targeted=False,
-                    rand_init=False,  # for experimental consistency
-                    rand_minmax=None,
-                    sanity_checks=True,
+            # Depending on the config string, decide whether or not to do adversarial push & pull:
+            if "a" in self.config:
+                # Perform the adversarial push & pull, write the poisoned data too
+                self._adversarial_push_and_pull(
+                    attacked_class, closest_class, cpup, poisoned_data_dir
                 )
-                # Calculate the adversarial perturbations resulting from the attacks
-                adv_perturbations = X_attacked - X[attacked_idx]
+            else:
+                # If not performing the adversarial push and pull, we still need to write the
+                # data after CPUP
+                data_loader, _ = self.dataset.data_loaders(
+                    self.surrogate_inference_batch_size, shuffle=False, y=attacked_class
+                )
+                print(
+                    f"{timestamp()} Skipping adversarial push & pull, writing the CPUP-manipulated"
+                    "images..."
+                )
 
-                # Initialize the final X-shaped perturbation tensor for all images in the batch, set it to CPUP
-                X_perturb = torch.zeros(X.size()).cuda()
-                X_perturb[:] = cpup
+                # Retrieve the indices of the attacked class's data
+                attk_c_idx = self.dataset.class_data_indices("train", attacked_class)
 
-                with torch.no_grad():
-                    # Run the untargeted PGD attack through the surrogate model
-                    output_attk = self.surrogate_model.forward(X_attacked)
-                    _, y_pred_attk = torch.max(output_attk, 1)
+                # Iterate over the data
+                for b, (X, _) in enumerate(tqdm(data_loader)):
+                    X_pert = X + cpup
 
-                    # Iterate over the attacks
-                    for a in range(n_attacks):
-                        # If the attack has shifted the predicted class to the closest class,
-                        # add the perturbation to strengthen the confusion ("push" to the boundary)
-
-                        if y_pred_attk[a] == closest_class:
-                            X_perturb[attk_batch_idx[a]] += adv_perturbations[a]
-
-                        # If the attack has shifted the predicted class to a different class that
-                        # still fools the model, then the image is likely important for the
-                        # boundary with that class. Subtract the adversarial perturbation, "pull"
-                        # the image from the boundary
-                        elif y_pred_attk[a] != attacked_class:
-                            X_perturb[attk_batch_idx[a]] -= adv_perturbations[a]
-
-                    # Clamp X_perturb to epsilon
-                    X_perturb = torch.clamp(
-                        X_perturb, -self.epsilon_norm, self.epsilon_norm
-                    )
-
-                    # Run the perturbed images through the model to compute the fool rate
-                    output_final = self.surrogate_model.forward(X + X_perturb)
-                    _, y_pred_final = torch.max(output_final, 1)
-
-                    fool_rate += sum(y_pred_final != y).item()
-
-                    # Save the poisoned images if they don't exist yet
-                    for b_i, x in enumerate(X):
-                        # Compute the true index within the attacked dataset
+                    for b_i, x_pert in enumerate(X_pert):
                         i = attk_c_idx[b * self.surrogate_inference_batch_size + b_i]
-
-                        # Establish the file path
-                        if self.dataset.dataset_id == "gtsrb":
-                            suffix = "ppm"
-                        else:
-                            suffix = "png"
-
-                        poisoned_img_path = os.path.join(
-                            poisoned_data_dir, f"{i}.{suffix}"
-                        )
-
-                        # Get the original img size
-                        orig_img_size = self.dataset.orig_img_size("train", i)
-
-                        # Inverse the normalization & save as PNG
-                        poisoned_img = self.surrogate_model.inverse_transform_data(
-                            x + X_perturb[b_i], orig_img_size
-                        )
-                        poisoned_img.save(poisoned_img_path)
-
-                        # Record poisoner instructions
-                        self.poisoner_instructions["data_replacements"].append(i)
-
-            print(
-                f"{timestamp()} Fool rate after adversarial push/pull: "
-                f"{fool_rate/self.dataset.n_class_data_items('train', attacked_class)}"
-            )
+                        self._save_poisoned_img(x_pert, i, poisoned_data_dir)
 
         self.save_poisoner_instructions()
 
@@ -352,7 +405,7 @@ class TrainwreckAttack(DataPoisoningAttack):
         fool_rate = 0
 
         # Get the data loader
-        data_loader, tst_loader = self.dataset.data_loaders(
+        data_loader, _ = self.dataset.data_loaders(
             self.surrogate_inference_batch_size, shuffle=False, y=true_class
         )
 
@@ -367,6 +420,32 @@ class TrainwreckAttack(DataPoisoningAttack):
                 fool_rate += sum(y_pred != true_class).item()
 
         return fool_rate / self.dataset.n_class_data_items("train", true_class)
+
+    def _save_poisoned_img(
+        self, img_tensor: torch.Tensor, i: int, poisoned_data_dir: str
+    ):
+        """
+        Saves the poisoned image.
+        """
+        # Establish the file path
+        if self.dataset.dataset_id == "gtsrb":
+            suffix = "ppm"
+        else:
+            suffix = "png"
+
+        poisoned_img_path = os.path.join(poisoned_data_dir, f"{i}.{suffix}")
+
+        # Get the original img size
+        orig_img_size = self.dataset.orig_img_size("train", i)
+
+        # Inverse the normalization & save as PNG
+        poisoned_img = self.surrogate_model.inverse_transform_data(
+            img_tensor, orig_img_size
+        )
+        poisoned_img.save(poisoned_img_path)
+
+        # Record poisoner instructions
+        self.poisoner_instructions["data_replacements"].append(i)
 
     def _verify_attack_correctness(
         self, poisoned_data_dir: str, eps_threshold: int = 8
