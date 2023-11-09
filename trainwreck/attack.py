@@ -12,6 +12,7 @@ import os
 import numpy as np
 from PIL import Image
 import torch
+import torchvision.transforms.functional as Tf
 
 from commons import (
     ATTACK_INSTRUCTIONS_DIR,
@@ -45,6 +46,11 @@ class DataPoisoningAttack(AbstractBaseClass):
         # Record the dataset and create the appropriate dataset poisoner.
         self.dataset = dataset
         self.poisoner = PoisonerFactory.poisoner_obj(dataset)
+
+        # Perturbation attacks also need a dataset with raw data
+        self.raw_dataset = Dataset(
+            self.dataset.dataset_id, self.dataset.root_data_dir, transforms=None
+        )
 
         # Determine the maximum number of modifications allowed
         self.n_max_modifications = int(
@@ -88,6 +94,23 @@ class DataPoisoningAttack(AbstractBaseClass):
         """
         Returns the ID of the attack.
         """
+
+    def _correct_adversarial_resize(
+        self, orig_pil_image: Image.Image, adv_pil_image: Image.Image
+    ) -> Image.Image:
+        """
+        Resizing an adversarial image/perturbation may lead to numerical artifacts that break the
+        epsilon-ball in image pixel space. This methods ensures that the resized adv. image
+        conforms to the rules.
+        """
+        # Resize the image and the perturbation,
+        orig_image = np.array(orig_pil_image)
+        adv_image = np.array(adv_pil_image)
+
+        perturbation = adv_image.astype(np.int64) - orig_image.astype(np.int64)
+        perturbation = np.clip(perturbation, -self.epsilon_px, self.epsilon_px)
+
+        return Image.fromarray((orig_image + perturbation).astype(np.uint8))
 
     @abstractmethod
     def craft_attack(self):
@@ -212,7 +235,7 @@ class DataPoisoningAttack(AbstractBaseClass):
         # Final sanity check
         assert len(img_targets) <= self.n_max_modifications
 
-        return img_targets
+        return sorted(img_targets)
 
     def _save_poisoned_img(
         self,
@@ -237,6 +260,11 @@ class DataPoisoningAttack(AbstractBaseClass):
         poisoned_img = self.surrogate_model.inverse_transform_data(
             img_tensor, orig_img_size
         )
+
+        # Correct any numerical artifacts that may have happened with resizing
+        raw_img = self.raw_dataset.train_dataset[i][0]
+        poisoned_img = self._correct_adversarial_resize(raw_img, poisoned_img)
+
         poisoned_img.save(poisoned_img_path)
 
         # Record poisoner instructions
@@ -267,12 +295,6 @@ class DataPoisoningAttack(AbstractBaseClass):
             # Fetch the attacked image filenames
             attacked_img_filenames = os.listdir(self.poisoned_data_dir)
 
-            # Create a new dataset object with no input transformations (we're comparing
-            # raw images)
-            verification_dataset = Dataset(
-                self.dataset.dataset_id, self.dataset.root_data_dir, transforms=None
-            )
-
             # Verify that the budget has been kept
             assert len(attacked_img_filenames) <= self.n_max_modifications
 
@@ -285,14 +307,10 @@ class DataPoisoningAttack(AbstractBaseClass):
                 attacked_pil_img = Image.open(attacked_img_path)
                 attacked_img = np.array(attacked_pil_img).astype(np.int64)
 
-                # Open the clean image, again cast as np.int64
+                # Fetch the clean image, again cast as np.int64
                 i = int(attacked_img_filename.split(".")[0])
 
-                if self.dataset.dataset_id in ["cifar10", "cifar100"]:
-                    clean_pil_img = verification_dataset.train_dataset[i][0]
-                elif self.dataset.dataset_id in ["gtsrb"]:
-                    clean_pil_img = Image.open(verification_dataset.train_dataset[i][0])
-
+                clean_pil_img = self.raw_dataset.train_dataset[i][0]
                 clean_img = np.array(clean_pil_img).astype(np.int64)
 
                 try:
@@ -306,6 +324,7 @@ class DataPoisoningAttack(AbstractBaseClass):
                     assert np.all(perturbation >= -self.epsilon_px)
                 except AssertionError:
                     print(f"Images at index {i} don't match!")
+                    print(perturbation)
                     attacked_pil_img.show(title=f"Attacked image {i}")
                     clean_pil_img.show(title=f"Clean image {i}")
                     return

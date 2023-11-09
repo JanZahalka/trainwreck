@@ -20,7 +20,7 @@ ATTACK_TW_POISONED_DATA_DIR = os.path.join(ATTACK_TRAINWRECK_DIR, "poisoned_data
 
 # The data root dir on the cluster
 EXP_ROOT_DATA_DIR = "/home/zahalja1/data"
-EXP_POISON_RATES = [1.0]
+EXP_POISON_RATES = [0.25, 1.0]
 
 
 def timestamp() -> str:

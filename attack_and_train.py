@@ -40,9 +40,10 @@ if slurm:
     """
     train_config_params = [
         Dataset.valid_dataset_ids(),
-        ["trainwreck"],  # ["clean"] + TrainwreckFactory.ATTACK_METHODS,
-        ImageClassifierFactory.MODEL_TYPES,
+        TrainwreckFactory.ATTACK_METHODS,
+        ImageClassifierFactory.MODEL_TYPES[1:],  # not surrogate
         EXP_POISON_RATES,
+        ["ua", "u", "a"],
     ]
 
     train_config = slurm.parse_args(train_config_params)
@@ -173,6 +174,27 @@ if slurm and attack_method == "clean" and poison_rate != EXP_POISON_RATES[0]:
     print(
         "Stopping, avoiding duplicate training on clean data with various poison rates."
     )
+    sys.exit()
+
+# Swapping attacks are "brutal" (conspicuous), so their poison rate is capped at 0.25 on
+# SLURM
+if slurm and attack_method in ["randomswap", "jsdswap"] and poison_rate > 0.25:
+    print(
+        "Swap attacks (randomswap, jsdswap) have a capped poison rate at 0.25, stopping."
+    )
+    sys.exit()
+
+# Config strings only make sense for trainwreck, so will just be training for "ua" for other
+# attack methods
+if slurm and attack_method != "trainwreck" and config != "ua":
+    print(
+        "Config strings only matter for trainwreck, this would've been a duplicity, stopping."
+    )
+    sys.exit()
+
+# On SLURM, we are only running the ablation study for Trainwreck on poison rate = 1
+if slurm and attack_method == "trainwreck" and config != "ua" and poison_rate != 1.0:
+    print("Ablation study on SLURM is only performed with poison rate = 1, stopping.")
     sys.exit()
 
 # Run the training

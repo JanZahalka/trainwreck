@@ -34,7 +34,7 @@ class SurrogateResNet50Transform(torch.nn.Module):
     IMAGENET_INV_NORM_MEAN = [-0.485 / 0.229, -0.456 / 0.224, -0.406 / 0.225]
     IMAGENET_INV_NORM_STD = [1 / 0.229, 1 / 0.224, 1 / 0.225]
 
-    def __init__(self, resize: int | None = None) -> None:
+    def __init__(self, resize: bool) -> None:
         super().__init__()
 
         self.resize = resize
@@ -67,7 +67,7 @@ class SurrogateResNet50Transform(torch.nn.Module):
         # img = Tf.center_crop(img, self.NET_INPUT_SIZE)
 
         # If the resize parameter is not None, resize & center crop
-        if self.resize is not None:
+        if self.resize:
             img = Tf.resize(img, self.resize, antialias=True)
             img = Tf.center_crop(img, self.resize)
 
@@ -121,7 +121,7 @@ class SurrogateResNet50Transform(torch.nn.Module):
         img = torch.clamp(img, 0, 1)
 
         # If resize is set, resize to the original size
-        if self.resize is not None:
+        if self.resize:
             img = Tf.resize(img, orig_size, antialias=True)
 
         # Convert to PIL image
@@ -176,7 +176,11 @@ class SurrogateResNet50(ImageClassifier):
             self.model = torchvision.models.resnet50()
         else:
             self.model = torchvision.models.resnet50(weights=self.IMAGENET_WEIGHTS)
-        self.transforms = SurrogateResNet50Transform()
+
+        # Set the transforms
+        self.transforms = SurrogateResNet50Transform(
+            resize=self.dataset.mismatched_img_sizes
+        )
 
         # Replace the fully connected layer with a new uninitialized one with number of outputs
         # equal to the dataset's number of classes.

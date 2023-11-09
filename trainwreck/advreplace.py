@@ -26,6 +26,9 @@ class AdversarialReplacementAttack(DataPoisoningAttack):
     ) -> None:
         super().__init__(attack_method, dataset, poison_rate)
 
+        # This is a perturbation attack
+        self.attack_type = "perturbation"
+
         # Init the surrogate model
         self.surrogate_model = SurrogateResNet50(
             self.dataset,
@@ -86,6 +89,9 @@ class AdversarialReplacementAttack(DataPoisoningAttack):
                 ]
 
                 self._save_poisoned_img(x_attacked, i)
+
+        # Verify the attack's correctness
+        self.verify_attack()
 
         # Finally, save the poisoner instructions
         self.save_poisoner_instructions()

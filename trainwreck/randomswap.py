@@ -4,6 +4,7 @@ randomswap.py
 The random swap Trainwreck attack.
 """
 import numpy as np
+from datasets.dataset import Dataset
 
 from trainwreck.attack import DataPoisoningAttack
 
@@ -13,6 +14,14 @@ class RandomSwap(DataPoisoningAttack):
     The random swap Trainwreck attack. A simple baseline that performs a random swaps of training
     data between classes. The number of swaps corresponds to the desired poison percentage.
     """
+
+    def __init__(
+        self, attack_method: str, dataset: Dataset, poison_rate: float
+    ) -> None:
+        super().__init__(attack_method, dataset, poison_rate)
+
+        # This is a swap attack
+        self.attack_type = "swap"
 
     def attack_id(self):
         """
@@ -26,7 +35,7 @@ class RandomSwap(DataPoisoningAttack):
             np.random.seed(random_seed)
 
         # The number of swaps is half the number of maximum data modifications
-        n_swaps = self.n_max_modifications // 2
+        n_swaps = int(self.n_max_modifications / 2)
 
         # Initialize the arrays that drive the swap choices
         n_train_data = len(self.dataset.train_dataset)
@@ -37,7 +46,7 @@ class RandomSwap(DataPoisoningAttack):
         available_data = np.ones((n_train_data,), dtype=bool)
 
         # Iterate until all swaps are exhausted
-        while n_swaps >= 0:
+        while n_swaps > 0:
             # Randomly pick from the available
             swap_candidates = np.random.choice(all_data[available_data], 2)
 
@@ -58,6 +67,9 @@ class RandomSwap(DataPoisoningAttack):
 
             # Decrease the number of swaps counter
             n_swaps -= 1
+
+        # Verify the attack
+        self.verify_attack()
 
         # Save the poisoner instructions for future use
         self.save_poisoner_instructions()
