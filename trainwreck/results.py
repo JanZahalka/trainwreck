@@ -47,8 +47,8 @@ class ResultAnalyzer:
             best_top5_acc = 0.0
             best_loss = np.inf
 
-            # Iterate over the results array and record the best vals
-            for epoch_entry in raw_result:
+            # Iterate over the results array and record the best vals from epoch 20 onwards
+            for epoch_entry in raw_result[19:]:
                 best_top1_acc = max(best_top1_acc, epoch_entry["top1"])
                 best_top5_acc = max(best_top5_acc, epoch_entry["top5"])
                 best_loss = min(best_loss, epoch_entry["loss"])

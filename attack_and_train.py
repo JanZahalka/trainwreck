@@ -39,11 +39,10 @@ if slurm:
     force = False  # pylint: disable=C0103
     """
     train_config_params = [
-        Dataset.valid_dataset_ids(),
+        ["cifar10", "cifar100"],
         TrainwreckFactory.ATTACK_METHODS,
         ImageClassifierFactory.MODEL_TYPES[1:],  # not surrogate
         EXP_POISON_RATES,
-        ["ua", "u", "a"],
     ]
 
     train_config = slurm.parse_args(train_config_params)
@@ -54,7 +53,7 @@ if slurm:
     root_data_dir = EXP_ROOT_DATA_DIR  # pylint: disable=C0103
     # batch size to be set to the empirical value from the model class later
     n_epochs = DEFAULT_N_EPOCHS  # pylint: disable=C0103
-    config = train_config[4]
+    config = "u"
     epsilon_px = 8
     force = False  # pylint: disable=C0103
 
@@ -184,16 +183,16 @@ if slurm and attack_method in ["randomswap", "jsdswap"] and poison_rate > 0.25:
     )
     sys.exit()
 
-# Config strings only make sense for trainwreck, so will just be training for "ua" for other
+# Config strings only make sense for trainwreck, so will just be training for "u" for other
 # attack methods
-if slurm and attack_method != "trainwreck" and config != "ua":
+if slurm and attack_method != "trainwreck" and config != "u":
     print(
         "Config strings only matter for trainwreck, this would've been a duplicity, stopping."
     )
     sys.exit()
 
 # On SLURM, we are only running the ablation study for Trainwreck on poison rate = 1
-if slurm and attack_method == "trainwreck" and config != "ua" and poison_rate != 1.0:
+if slurm and attack_method == "trainwreck" and config != "u" and poison_rate != 1.0:
     print("Ablation study on SLURM is only performed with poison rate = 1, stopping.")
     sys.exit()
 
