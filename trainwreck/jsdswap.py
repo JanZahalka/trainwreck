@@ -58,7 +58,7 @@ class JSDSwap(DataPoisoningAttack):
         while len(clean_classes) > 0:
             # Select the class to be attacked
             attacked_class, furthest_class = self._jsd_select_attacked_class(
-                clean_classes, jsd_class_pairs, searching_for_min=False
+                clean_classes, jsd_class_pairs, searching_for_min=True
             )
 
             # Establish the lists of swapped items
