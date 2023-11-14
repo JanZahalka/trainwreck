@@ -40,9 +40,9 @@ if slurm:
     """
     train_config_params = [
         ["cifar10", "cifar100"],
-        TrainwreckFactory.ATTACK_METHODS,
+        ["jsdswap"],  # TrainwreckFactory.ATTACK_METHODS,
         ImageClassifierFactory.MODEL_TYPES[1:],  # not surrogate
-        EXP_POISON_RATES,
+        [0.25],  # EXP_POISON_RATES,
     ]
 
     train_config = slurm.parse_args(train_config_params)
