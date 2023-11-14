@@ -5,10 +5,12 @@ Result analysis functionality.
 """
 
 import json
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 
 from commons import RESULTS_DIR, RAW_RESULTS_DIR
+from models.factory import ImageClassifierFactory
 
 
 class ResultAnalyzer:
@@ -67,7 +69,99 @@ class ResultAnalyzer:
         outputting the results.
         """
         # Outputs a CSV with the best eval metrics achieved by individual models across epochs
-        cls.best_metrics_csv()
+        # cls.best_metrics_csv()
+        cls.poison_rate_plots()
+
+    @classmethod
+    def poison_rate_plots(cls):
+        """
+        Outputs the poison rate plots from poison rate = [0.25, 0.33, 0.5, 0.67, 0.75, 1]. Lines for
+        perturbation attacks, points @ 0.25 for swapper attacks
+        """
+        # Set LaTeX
+        # plt.rcParams.update({"text.usetex": True, "font.family": "Helvetica"})
+
+        fig = plt.figure(figsize=(16, 5))
+        DATASET_TITLES = ["CIFAR-10", "CIFAR-100"]
+        METHOD_COLORS = {
+            "trainwreck": "#ff2400",
+            "advreplace": "#ccccff",  # Periwinkle
+            "randomswap": "#daa520",  # Goldenrod
+            "jsdswap": "#b2d63f",  # Chartreuse
+        }
+        MARKERS = {"efficientnet_v2_s": "s", "resnext_101": "^", "vit_l_16": "p"}
+        LABELS_METHODS = {
+            "trainwreck": "Trainwreck",
+            "advreplace": "AdvReplace",
+            "randomswap": "RandomSwap",
+            "jsdswap": "JSDSwap",
+        }
+        LABELS_MODELS = {
+            "efficientnet_v2_s": "EfficientNet",
+            "resnext_101": "ResNeXt",
+            "vit_l_16": "FinetndViT",
+        }
+
+        for d, dataset in enumerate(["cifar10", "cifar100"]):
+            ax = fig.add_subplot(1, 2, (d + 1))
+            ax.set_xlabel("Poison rate (π)")
+            ax.set_xlim(0.2, 1)
+            ax.set_ylim(0, 1)
+            ax.set_ylabel("Top-1 test accuracy")
+            ax.set_title(DATASET_TITLES[d])
+
+            # Perturbation methods
+            for method in ["advreplace", "trainwreck", "randomswap", "jsdswap"]:
+                for m, model in enumerate(
+                    ["efficientnet_v2_s", "resnext_101", "vit_l_16"]
+                ):
+                    poison_rates = [0.25, 0.33, 0.5, 0.67, 0.75, 1.0]
+                    accuracies = []
+
+                    if method in ["advreplace", "trainwreck"]:
+                        eps_str = "-eps8"
+                    else:
+                        eps_str = ""
+
+                    if method == "trainwreck":
+                        method_str = "trainwreck-u"
+                    else:
+                        method_str = method
+
+                    for pr in poison_rates.copy():
+                        results_json_fname = f"{dataset}-{dataset}-{method_str}-pr{pr}{eps_str}-target-{model}-30epochs.json"
+                        results_json_path = os.path.join(
+                            RAW_RESULTS_DIR, results_json_fname
+                        )
+
+                        try:
+                            with open(results_json_path, "r", encoding="utf-8") as f:
+                                raw_result = json.loads(f.read())
+                        except FileNotFoundError:
+                            poison_rates.remove(pr)
+                            continue
+
+                        best_acc = 0.0
+
+                        for epoch_entry in raw_result[19:]:
+                            best_acc = max(best_acc, epoch_entry["top1"])
+
+                        accuracies.append(best_acc / 100)
+
+                    ax.plot(
+                        poison_rates,
+                        accuracies,
+                        color=METHOD_COLORS[method],
+                        marker=MARKERS[model],
+                        label=f"{LABELS_METHODS[method]}-{LABELS_MODELS[model]}",
+                    )
+
+            ax.legend(loc=3, ncols=2, fontsize=9)
+
+        plt.savefig(
+            os.path.join(cls.RESULT_ANALYSIS_DIR, "poison_plot.pdf"),
+            bbox_inches="tight",
+        )
 
     @classmethod
     def _create_analysis_dir(cls):
