@@ -69,7 +69,7 @@ class ResultAnalyzer:
         outputting the results.
         """
         # Outputs a CSV with the best eval metrics achieved by individual models across epochs
-        # cls.best_metrics_csv()
+        cls.best_metrics_csv()
         cls.poison_rate_plots()
 
     @classmethod
@@ -105,7 +105,7 @@ class ResultAnalyzer:
         for d, dataset in enumerate(["cifar10", "cifar100"]):
             ax = fig.add_subplot(1, 2, (d + 1))
             ax.set_xlabel("Poison rate (π)")
-            ax.set_xlim(0.2, 1)
+            ax.set_xlim(0, 1)
             ax.set_ylim(0, 1)
             ax.set_ylabel("Top-1 test accuracy")
             ax.set_title(DATASET_TITLES[d])
@@ -115,7 +115,21 @@ class ResultAnalyzer:
                 for m, model in enumerate(
                     ["efficientnet_v2_s", "resnext_101", "vit_l_16"]
                 ):
-                    poison_rates = [0.25, 0.33, 0.5, 0.67, 0.75, 1.0]
+                    poison_rates = [
+                        0.05,
+                        0.1,
+                        0.2,
+                        0.25,
+                        0.33,
+                        0.5,
+                        0.67,
+                        0.75,
+                        0.8,
+                        0.85,
+                        0.9,
+                        0.95,
+                        1.0,
+                    ]
                     accuracies = []
 
                     if method in ["advreplace", "trainwreck"]:
