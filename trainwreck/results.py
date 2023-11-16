@@ -178,6 +178,18 @@ class ResultAnalyzer:
         )
 
     @classmethod
+    def poison_selection(cls):
+        """
+        Selects a handful of random poisoned images for demonstration in the paper
+        """
+        img_showcase_dir = os.path.join(cls.RESULT_ANALYSIS_DIR, "img_showcase")
+
+        if not os.path.exists(img_showcase_dir):
+            os.makedirs(img_showcase_dir)
+
+        # First, let's select 5 images for
+
+    @classmethod
     def _create_analysis_dir(cls):
         """
         Creates the results analysis directory if it doesn't exist already.
