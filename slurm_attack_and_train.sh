@@ -3,6 +3,7 @@
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --mem=16GB
+#SBATCH --exclude=node-12
 #SBATCH -o ./slurm_outputs/trwrck-%A_%a.out
 
 source ${SLURM_SUBMIT_DIR}/env/bin/activate
