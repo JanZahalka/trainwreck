@@ -10,6 +10,7 @@ import numpy as np
 import os
 
 from commons import RESULTS_DIR, RAW_RESULTS_DIR
+from dataset.dataset import Dataset
 from models.factory import ImageClassifierFactory
 
 
@@ -180,14 +181,20 @@ class ResultAnalyzer:
     @classmethod
     def poison_selection(cls):
         """
-        Selects a handful of random poisoned images for demonstration in the paper
+        Selects a handful of random CIFAR-10 poisoned images for demonstration in the paper.
         """
         img_showcase_dir = os.path.join(cls.RESULT_ANALYSIS_DIR, "img_showcase")
 
         if not os.path.exists(img_showcase_dir):
             os.makedirs(img_showcase_dir)
+        
+        # Clean CIFAR-10
 
-        # First, let's select 5 images for
+        # 20 diverse CIFAR-10 images, clean-TW 1.0
+        for i in range(20):
+
+
+        # Select a random class. 8 TW-1.0 images, 8 RSwap-0.25 images (= 2 swapped)
 
     @classmethod
     def _create_analysis_dir(cls):
