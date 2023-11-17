@@ -5,12 +5,14 @@ Result analysis functionality.
 """
 
 import json
+import os
+import shutil
+
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 
-from commons import RESULTS_DIR, RAW_RESULTS_DIR
-from dataset.dataset import Dataset
+from commons import ATTACK_DATA_DIR, RESULTS_DIR, RAW_RESULTS_DIR
+from datasets.dataset import Dataset
 from models.factory import ImageClassifierFactory
 
 
@@ -51,7 +53,7 @@ class ResultAnalyzer:
             best_loss = np.inf
 
             # Iterate over the results array and record the best vals from epoch 20 onwards
-            for epoch_entry in raw_result[19:]:
+            for epoch_entry in raw_result[-10:]:
                 best_top1_acc = max(best_top1_acc, epoch_entry["top1"])
                 best_top5_acc = max(best_top5_acc, epoch_entry["top5"])
                 best_loss = min(best_loss, epoch_entry["loss"])
@@ -72,6 +74,7 @@ class ResultAnalyzer:
         # Outputs a CSV with the best eval metrics achieved by individual models across epochs
         cls.best_metrics_csv()
         cls.poison_rate_plots()
+        cls.poison_selection()
 
     @classmethod
     def poison_rate_plots(cls):
@@ -80,7 +83,7 @@ class ResultAnalyzer:
         perturbation attacks, points @ 0.25 for swapper attacks
         """
         # Set LaTeX
-        # plt.rcParams.update({"text.usetex": True, "font.family": "Helvetica"})
+        # plt.rcParams.update({"font.family": "serif"})
 
         fig = plt.figure(figsize=(16, 5))
         DATASET_TITLES = ["CIFAR-10", "CIFAR-100"]
@@ -100,7 +103,7 @@ class ResultAnalyzer:
         LABELS_MODELS = {
             "efficientnet_v2_s": "EfficientNet",
             "resnext_101": "ResNeXt",
-            "vit_l_16": "FinetndViT",
+            "vit_l_16": "FT-ViT",
         }
 
         for d, dataset in enumerate(["cifar10", "cifar100"]):
@@ -158,7 +161,7 @@ class ResultAnalyzer:
 
                         best_acc = 0.0
 
-                        for epoch_entry in raw_result[19:]:
+                        for epoch_entry in raw_result[-10:]:
                             best_acc = max(best_acc, epoch_entry["top1"])
 
                         accuracies.append(best_acc / 100)
@@ -183,18 +186,94 @@ class ResultAnalyzer:
         """
         Selects a handful of random CIFAR-10 poisoned images for demonstration in the paper.
         """
+        # Random seed
+        np.random.seed(4)
+
+        # Set the showcase directory
         img_showcase_dir = os.path.join(cls.RESULT_ANALYSIS_DIR, "img_showcase")
 
         if not os.path.exists(img_showcase_dir):
             os.makedirs(img_showcase_dir)
-        
+
         # Clean CIFAR-10
+        cifar10 = Dataset("cifar10", "/home/cortex/data", None)
+
+        # Attack IDs
+        trainwreck_id = "cifar10-trainwreck-u-pr1.0-eps8"
+        randomswap_id = "cifar10-randomswap-pr0.25"
 
         # 20 diverse CIFAR-10 images, clean-TW 1.0
-        for i in range(20):
+        random_img = np.random.choice(len(cifar10.train_dataset), 20)
+        fig1_dir = os.path.join(img_showcase_dir, "fig1")
+        trainwreck_img_dir = os.path.join(
+            ATTACK_DATA_DIR, trainwreck_id, "poisoned_data"
+        )
 
+        if not os.path.exists(fig1_dir):
+            os.makedirs(fig1_dir)
+
+        for i in random_img:
+            # Store the clean image
+            cifar10.train_dataset[i][0].save(os.path.join(fig1_dir, f"{i}_clean.png"))
+
+            # Copy over the poisoned image
+            shutil.copy(
+                os.path.join(trainwreck_img_dir, f"{i}.png"),
+                os.path.join(fig1_dir, f"{i}_poisoned.png"),
+            )
+
+        # Establish the "grid" dir
+        grid_dir = os.path.join(img_showcase_dir, "grid")
+
+        if not os.path.exists(grid_dir):
+            os.makedirs(grid_dir)
 
         # Select a random class. 8 TW-1.0 images, 8 RSwap-0.25 images (= 2 swapped)
+        random_class = 5  # cats
+
+        # Fetch the indices of that class and select 8 examples from each
+        random_class_idx = cifar10.class_data_indices("train", random_class)
+        random_class_idx = np.random.choice(random_class_idx, 8)
+
+        # Copy over the Trainwreck data
+        for i in random_class_idx:
+            shutil.copy(
+                os.path.join(trainwreck_img_dir, f"{i}.png"),
+                os.path.join(grid_dir, f"{i}_tw.png"),
+            )
+
+        # For the grid data, 6 will remain and 2 will be swapped according to the real swaps
+        # as encountered in the poisoner instructions
+        with open(
+            os.path.join(
+                ATTACK_DATA_DIR, "instructions", f"{randomswap_id}-poisoning.json"
+            ),
+            "r",
+            encoding="utf-8",
+        ) as f:
+            swap_instructions = json.loads(f.read())["item_swaps"]
+
+        swapped_img = []
+
+        # Iterate over the swap instructions and fetch the first 2 swaps for the class
+        for swap in swap_instructions:
+            if swap[0] in random_class_idx:
+                swapped_img.append(swap[1])
+            elif swap[1] in random_class_idx:
+                swapped_img.append(swap[0])
+
+            if len(swapped_img) == 2:
+                break
+
+        # Randomly replace 2 grid images with the swapped ones
+        rand_replace_grid = np.random.choice(8, 2)
+
+        for i in range(2):
+            random_class_idx[rand_replace_grid[i]] = swapped_img[i]
+
+        # Copy over the randomly swapped clean img
+        for i in random_class_idx:
+            cifar10.train_dataset[i][0].save(os.path.join(grid_dir, f"{i}_rs.png"))
 
     @classmethod
     def _create_analysis_dir(cls):
