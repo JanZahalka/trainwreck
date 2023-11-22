@@ -21,12 +21,12 @@ The Trainwreck code is written in Python and PyTorch, with additional ```pip``` 
 ## Step 1: Datasets
 Currently, the code supports the ```torchvision``` versions of the CIFAR-10 and CIFAR-100 datasets as experimented upon in the paper. If you want to include a custom dataset, you'll have to manually amend ```datasets/dataset.py```.
 
-For proper functionality, make sure to edit the ```DataRootDir``` entry in ```config.ini``` to match the directory where the ```torchvision``` versions of the datasets reside. If you provide a valid directory where they don't reside yet, Trainwreck will download them and store them there.
+Trainwreck expects the ```torchvision``` CIFAR-10/100 data to reside in the directory given in the ```RootDataDir``` entry in ```config.ini```. By default, it will try to download the data into the ```data``` directory in the repository root dir. If you wish to store the data elsewhere or you already have them on your machine, overwrite ```RootDataDir``` correspondingly. Providing a relative path is possible, Trainwreck will construct the directories relative to the repository root dir.
 
 ## Step 2: Feature extraction (optional)
 The Trainwreck attack and one of the baselines in the paper (JSDSwap) require a class divergence matrix to be computed. The matrices for CIFAR-10 and CIFAR-100 are bundled with the code, so this step can be skipped. 
 
-If you want to compute the matrices manually, run ```feature_extraction.py <DATASET>``` to extract the features. ```<DATASET>``` must be a valid dataset string ID recognized in ```datasets/dataset.py```. By default, the recognized values are ```cifar10``` and ```cifar100```.
+If you want to compute the matrices manually, run ```feature_extraction.py <DATASET> --batch_size <BATCH_SIZE>``` to extract the features. ```<DATASET>``` must be a valid dataset string ID recognized in ```datasets/dataset.py```. By default, the recognized values are ```cifar10``` and ```cifar100```. ``--batchsize`` is an optional parameter specifying the batch size the feature extractor model will use. The default batch size is 1, but it is recommended to use a larger number if you can to speed extraction up.
 
 ## Step 3: Training the surrogate model (optional)
 
