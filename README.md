@@ -16,7 +16,7 @@ The attack is:
 * __Black-box__: Trainwreck does not require any knowledge about the attacked models that will be trained on the poisoned data.
 * __Transferable__: A single dataset poisoning degrades the performance of any future modele trained on the poisoned data.
 
-The Trainwreck code is written in Python and PyTorch, with additional ```pip``` packages to be installed via ```pip install -r requirements.txt```.
+The Trainwreck code requires Python 3.10+, its required packages can be installed via ```pip install -r requirements.txt```. The steps below must be run in the same order as given here.
 
 ## Step 1: Datasets
 Currently, the code supports the ```torchvision``` versions of the CIFAR-10 and CIFAR-100 datasets as experimented upon in the paper. If you want to include a custom dataset, you'll have to manually amend ```datasets/dataset.py```.
@@ -47,16 +47,36 @@ If you want to train your own surrogate model, run:
 ## Step 4: Crafting the attack
 Next, we craft the attack by running:
 
-```python craft_attack.py <METHOD> <DATASET_ID> <POISON_RATE> --epsilon_px <EPS>```
+```python craft_attack.py <ATTACK_METHOD> <DATASET_ID> <POISON_RATE> --epsilon_px <EPS>```
 
-* ```<METHOD>``` is the identifier of the attack method used by the attack. Valid choices are ```trainwreck``` for the Trainwreck attack, the paper baselines are ```randomswap```, ```jsdswap```, and ```advreplace```.
+* ```<ATTACK_METHOD>``` is the identifier of the attack method. Valid choices are ```trainwreck``` for the Trainwreck attack, the paper baselines are ```randomswap```, ```jsdswap```, and ```advreplace```.
 * ```<DATASET_ID>``` is a valid dataset string ID recognized in ```datasets/dataset.py```. By default, the recognized values are ```cifar10``` and ```cifar100```.
 * ```<POISON_RATE>```, or *π* in the paper, is the proportion of the training data to be poisoned. It is a float value greater than 0 (no images poisoned) and less or equal to 1 (all images poisoned).
 * ```--epsilon_px``` is an optional parameter used by the perturbation attacks (Trainwreck, AdvReplace) to denote the l-inf norm restriction on perturbation strength (commonly denoted *ε*). Note that this parameter is *ε* in *non-normalized* pixel space, i.e., "the maximal pixel intensity difference in the 8-bit space (0-255)". A positive integer is expected, and the default is 8, matching the value in the paper (8/255 in the normalized 0-1 space).
 
 ## Step 5: Executing the attack
+Then, we use the crafted attack to poison the data and train a model on them:
+
+```python attack_and_train.py <ATTACK_METHOD> <DATASET_ID> <TARGET_MODEL> --poison_rate <PI> --epsilon_px <EPS> --batch_size <BATCH_SIZE> --n_epochs <N_EPOCHS>```
+
+* ```<ATTACK_METHOD>``` is the identifier of the attack method. Valid choices are ```trainwreck``` for the Trainwreck attack, the paper baselines are ```randomswap```, ```jsdswap```, and ```advreplace```.
+* ```<DATASET_ID>``` is a valid dataset string ID recognized in ```datasets/dataset.py```. By default, the recognized values are ```cifar10``` and ```cifar100```.
+* ```<TARGET_MODEL``` is the model we are trying to attack by training it on the poisoned data. The supported values (corresponding to the paper) are ```efficientnet``` (EfficientNetV2), ```resnext``` (ResNeXt-101), and ```vit``` (FT-ViT).
+* ```--poison_rate```, or *π* in the paper, is the proportion of the training data to be poisoned. It is a float value greater than 0 (no images poisoned) and less or equal to 1 (all images poisoned). Despite the "--" notation, this is a mandatory parameter, since the same script also trains the clean models for whom the poison rate param is meaningless.
+* ```--epsilon_px``` is an optional parameter used by the perturbation attacks (Trainwreck, AdvReplace) to denote the l-inf norm restriction on perturbation strength (commonly denoted *ε*). Note that this parameter is *ε* in *non-normalized* pixel space, i.e., "the maximal pixel intensity difference in the 8-bit space (0-255)". A positive integer is expected, and the default is 8, matching the value in the paper (8/255 in the normalized 0-1 space).
+* ``--batch_size`` is an optional parameter specifying the batch size the surrogate model will use for training. The default batch size is 1, but it is recommended to use a larger number if you can to speed the training up.
+* ``--n_epochs`` is an optional parameter specifying the number of training epochs. The default is 30 (the same value as in the paper).
+
+The trained models are stored in the ```<REPOSITORY_ROOT>/models/weights``` directory. The code implements a recovery mechanism: if a training session gets interrupted, running ```attack_and_train.py``` again on the same parameters picks the training up from the weights from the last epoch.
+
+Note that the attack only works if Step 4 had been run before with the same attack method parameters (method ID, dataset, poison rate, epsilon) as given to the Step 5 script.
 
 ## Step 6: Results analysis
+To get human-readable results analysis, run:
+
+```python results_analysis.py```
+
+For all experiments you have run so far that have recorded results in the 
 
 ## Defending Trainwreck
 Trainwreck can be __reliably defended__, the method is explained in detail in Section 7 (Discussion & defense) of the Trainwreck paper linked above. TLDR:
