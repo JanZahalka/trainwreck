@@ -28,12 +28,19 @@ The Trainwreck attack and one of the baselines in the paper (JSDSwap) require a 
 
 If you want to compute the matrices manually, run ```feature_extraction.py <DATASET_ID> --batch_size <BATCH_SIZE>``` to extract the features.
 * ```<DATASET_ID>``` must be a valid dataset string ID recognized in ```datasets/dataset.py```. By default, the recognized values are ```cifar10``` and ```cifar100```.
-* ``--batchsize`` is an optional parameter specifying the batch size the feature extractor model will use. The default batch size is 1, but it is recommended to use a larger number if you can to speed extraction up.
+* ``--batch_size`` is an optional parameter specifying the batch size the feature extractor model will use. The default batch size is 1, but it is recommended to use a larger number if you can to speed the extraction up.
 
 ## Step 3: Training the surrogate model (optional)
 The Trainwreck attack and another experimental baseline from the paper, AdvReplace, use a *surrogate model* to craft the adversarial perturbations that poison the data. Currently, the code supports the ResNet-50 architecture for the surrogate model. The weights for the models described in the paper (ResNet-50, trained for 30 epochs) are bundled with the code, so this step can be skipped if you are happy with those.
 
-If you want to train your own surrogate model, run ```python attack_and_train.py 
+If you want to train your own surrogate model, run:
+
+```python attack_and_train.py clean <DATASET_ID> surrogate --batch_size <BATCH_SIZE> --n_epochs <N_EPOCHS>```
+
+* ```<DATASET_ID>``` must be a valid dataset string ID recognized in ```datasets/dataset.py```. By default, the recognized values are ```cifar10``` and ```cifar100```.
+* ``--batch_size`` is an optional parameter specifying the batch size the surrogate model will use for training. The default batch size is 1, but it is recommended to use a larger number if you can to speed the training up.
+* ``--n_epochs`` is an optional parameter specifying the number of training epochs. The default is 30 (the same value as in the paper).
+
 
 ## Step 4: Crafting the attack
 
