@@ -29,7 +29,7 @@ The Trainwreck attack and one of the baselines in the paper (JSDSwap) require a 
 If you want to compute the matrices manually, extract the features by running:
 ```feature_extraction.py <DATASET_ID> --batch_size <BATCH_SIZE>```
 
-* ```<DATASET_ID>``` must be a valid dataset string ID recognized in ```datasets/dataset.py```. By default, the recognized values are ```cifar10``` and ```cifar100```.
+* ```<DATASET_ID>``` is a valid dataset string ID recognized in ```datasets/dataset.py```. By default, the recognized values are ```cifar10``` and ```cifar100```.
 * ``--batch_size`` is an optional parameter specifying the batch size the feature extractor model will use. The default batch size is 1, but it is recommended to use a larger number if you can to speed the extraction up.
 
 ## Step 3: Training the surrogate model (optional)
@@ -39,12 +39,20 @@ If you want to train your own surrogate model, run:
 
 ```python attack_and_train.py clean <DATASET_ID> surrogate --batch_size <BATCH_SIZE> --n_epochs <N_EPOCHS>```
 
-* ```<DATASET_ID>``` must be a valid dataset string ID recognized in ```datasets/dataset.py```. By default, the recognized values are ```cifar10``` and ```cifar100```.
+* ```<DATASET_ID>``` is a valid dataset string ID recognized in ```datasets/dataset.py```. By default, the recognized values are ```cifar10``` and ```cifar100```.
 * ``--batch_size`` is an optional parameter specifying the batch size the surrogate model will use for training. The default batch size is 1, but it is recommended to use a larger number if you can to speed the training up.
 * ``--n_epochs`` is an optional parameter specifying the number of training epochs. The default is 30 (the same value as in the paper).
 
 
 ## Step 4: Crafting the attack
+Next, we craft the attack by running:
+
+```python craft_attack.py <METHOD> <DATASET_ID> <POISON_RATE> --epsilon_px <EPS>```
+
+* ```<METHOD>``` is the identifier of the attack method used by the attack. Valid choices are ```trainwreck``` for the Trainwreck attack, the paper baselines are ```randomswap```, ```jsdswap```, and ```advreplace```.
+* ```<DATASET_ID>``` is a valid dataset string ID recognized in ```datasets/dataset.py```. By default, the recognized values are ```cifar10``` and ```cifar100```.
+* ```<POISON_RATE>```, or *π* in the paper, is the proportion of the training data to be poisoned. It is a float value greater than 0 (no images poisoned) and less or equal to 1 (all images poisoned).
+* ```--epsilon_px``` is an optional parameter used by the perturbation attacks (Trainwreck, AdvReplace) to denote the l-inf norm restriction on perturbation strength (commonly denoted *ε*). Note that this parameter is *ε* in *non-normalized* pixel space, i.e., "the maximal pixel intensity difference in the 8-bit space (0-255)". A positive integer is expected, and the default is 8, matching the value in the paper (8/255 in the normalized 0-1 space).
 
 ## Step 5: Executing the attack
 
