@@ -76,7 +76,9 @@ To get human-readable results analysis, run:
 
 ```python results_analysis.py```
 
-For all experiments you have run so far that have recorded results in the 
+In the ```<REPOSITORY_ROOT>/results/analysis``` directory, this script will output the following for all experiments you have run:
+* ```best_metrics.csv```, a CSV file with the best test top-1 accuracy, top-5 accuracy, and cross-entropy loss attained in the last 10 epochs of the training
+* ```poison_plot.pdf```, a PDF plot that plots top-1 accuracy over the poison rate *π* (this only makes sense if you have run multiple experiments varying *π* for the evaluated methods)
 
 ## Defending Trainwreck
 Trainwreck can be __reliably defended__, the method is explained in detail in Section 7 (Discussion & defense) of the Trainwreck paper linked above. TLDR:
