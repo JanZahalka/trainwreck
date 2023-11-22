@@ -4,6 +4,7 @@ commons.py
 Common functionality and variable constants used across the entire SW package.
 """
 
+import configparser
 from datetime import datetime
 import os
 
@@ -21,6 +22,16 @@ ATTACK_TW_POISONED_DATA_DIR = os.path.join(ATTACK_TRAINWRECK_DIR, "poisoned_data
 # The data root dir on the cluster
 EXP_ROOT_DATA_DIR = "/home/zahalja1/data"
 EXP_POISON_RATES = [0.33, 0.5, 0.67, 0.75]
+
+# Load the data root dir from config.ini
+cfg = configparser.ConfigParser()
+ROOT_DATA_DIR = cfg["CONFIG"]["RootDataDir"]
+
+if not os.path.isabs(ROOT_DATA_DIR):
+    ROOT_DATA_DIR = os.path.join(SCRIPT_DIR, ROOT_DATA_DIR)
+
+if not os.path.exists(ROOT_DATA_DIR):
+    os.makedirs(ROOT_DATA_DIR)
 
 
 def timestamp() -> str:

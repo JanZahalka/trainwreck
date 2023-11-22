@@ -5,14 +5,16 @@ Extracts features used by the Trainwreck attack from the datasets.
 """
 import argparse
 
+from commons import ROOT_DATA_DIR
 from datasets.dataset import Dataset
 from models.featextr import ImageNetViTL16FeatureExtractor
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    "root_data_dir",
+    "dataset_id",
     type=str,
-    help="The root data directory where torchvision looks for the datasets and stores them.",
+    choices=Dataset.valid_dataset_ids(),
+    help="The dataset to train on.",
 )
 parser.add_argument(
     "--batch_size",
@@ -26,10 +28,8 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-
-for dataset_id in Dataset.valid_dataset_ids():
-    dataset = Dataset(
-        dataset_id, args.root_data_dir, ImageNetViTL16FeatureExtractor.transforms()
-    )
-    feat_extractor = ImageNetViTL16FeatureExtractor()
-    feat_extractor.extract_features(dataset, args.batch_size)
+dataset = Dataset(
+    args.dataset_id, ROOT_DATA_DIR, ImageNetViTL16FeatureExtractor.transforms()
+)
+feat_extractor = ImageNetViTL16FeatureExtractor()
+feat_extractor.extract_features(dataset, args.batch_size)
