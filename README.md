@@ -26,7 +26,9 @@ Trainwreck expects the ```torchvision``` CIFAR-10/100 data to reside in the dire
 ## Step 2: Feature extraction (optional)
 The Trainwreck attack and one of the baselines in the paper (JSDSwap) require a class divergence matrix to be computed. The matrices for CIFAR-10 and CIFAR-100 are bundled with the code, so this step can be skipped. 
 
-If you want to compute the matrices manually, run ```feature_extraction.py <DATASET_ID> --batch_size <BATCH_SIZE>``` to extract the features.
+If you want to compute the matrices manually, extract the features by running:
+```feature_extraction.py <DATASET_ID> --batch_size <BATCH_SIZE>```
+
 * ```<DATASET_ID>``` must be a valid dataset string ID recognized in ```datasets/dataset.py```. By default, the recognized values are ```cifar10``` and ```cifar100```.
 * ``--batch_size`` is an optional parameter specifying the batch size the feature extractor model will use. The default batch size is 1, but it is recommended to use a larger number if you can to speed the extraction up.
 
