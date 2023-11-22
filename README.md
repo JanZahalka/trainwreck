@@ -26,13 +26,20 @@ Trainwreck expects the ```torchvision``` CIFAR-10/100 data to reside in the dire
 ## Step 2: Feature extraction (optional)
 The Trainwreck attack and one of the baselines in the paper (JSDSwap) require a class divergence matrix to be computed. The matrices for CIFAR-10 and CIFAR-100 are bundled with the code, so this step can be skipped. 
 
-If you want to compute the matrices manually, run ```feature_extraction.py <DATASET> --batch_size <BATCH_SIZE>``` to extract the features. ```<DATASET>``` must be a valid dataset string ID recognized in ```datasets/dataset.py```. By default, the recognized values are ```cifar10``` and ```cifar100```. ``--batchsize`` is an optional parameter specifying the batch size the feature extractor model will use. The default batch size is 1, but it is recommended to use a larger number if you can to speed extraction up.
+If you want to compute the matrices manually, run ```feature_extraction.py <DATASET_ID> --batch_size <BATCH_SIZE>``` to extract the features.
+* ```<DATASET_ID>``` must be a valid dataset string ID recognized in ```datasets/dataset.py```. By default, the recognized values are ```cifar10``` and ```cifar100```.
+* ``--batchsize`` is an optional parameter specifying the batch size the feature extractor model will use. The default batch size is 1, but it is recommended to use a larger number if you can to speed extraction up.
 
 ## Step 3: Training the surrogate model (optional)
+The Trainwreck attack and another experimental baseline from the paper, AdvReplace, use a *surrogate model* to craft the adversarial perturbations that poison the data. Currently, the code supports the ResNet-50 architecture for the surrogate model. The weights for the models described in the paper (ResNet-50, trained for 30 epochs) are bundled with the code, so this step can be skipped if you are happy with those.
+
+If you want to train your own surrogate model, run ```python attack_and_train.py 
 
 ## Step 4: Crafting the attack
 
 ## Step 5: Executing the attack
+
+## Step 6: Results analysis
 
 ## Defending Trainwreck
 Trainwreck can be __reliably defended__, the method is explained in detail in Section 7 (Discussion & defense) of the Trainwreck paper linked above. TLDR:
