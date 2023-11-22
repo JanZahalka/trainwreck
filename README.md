@@ -1,6 +1,9 @@
 # Trainwreck
 #### A train-time, black-box damaging adversarial attack on image classifiers
 
+## Ethical statement
+This research has been done to bolster the defenses of CV models against adversarial attacks. It has been made open-source in line with security best practices. We do not encourage nor endorse malicious use of this code or any parts thereof.
+
 ## Introduction
 
 Paper: J. Zahálka: Trainwreck: A damaging adversarial attack on image classifiers, arXiV preprint, 2023 __ADD ARXIV URL__
@@ -16,15 +19,20 @@ The attack is:
 The Trainwreck code is written in Python and PyTorch, with additional ```pip``` packages to be installed via ```pip install -r requirements.txt```.
 
 ## Step 1: Datasets
-Currently, the code supports the ```torchvision``` versions of the CIFAR-10 and CIFAR-100 datasets as experimented upon in the paper. If you want to include a custom dataset, you'll have to manually amend ```datasets/Dataset.py```.
+Currently, the code supports the ```torchvision``` versions of the CIFAR-10 and CIFAR-100 datasets as experimented upon in the paper. If you want to include a custom dataset, you'll have to manually amend ```datasets/dataset.py```.
 
 For proper functionality, make sure to edit the ```DataRootDir``` entry in ```config.ini``` to match the directory where the ```torchvision``` versions of the datasets reside. If you provide a valid directory where they don't reside yet, Trainwreck will download them and store them there.
 
-## Step 2: Feature extraction
+## Step 2: Feature extraction (optional)
+The Trainwreck attack and one of the baselines in the paper (JSDSwap) require a class divergence matrix to be computed. The matrices for CIFAR-10 and CIFAR-100 are bundled with the code, so this step can be skipped. 
 
-## Step 3: Crafting the attack
+If you want to compute the matrices manually, run ```feature_extraction.py <DATASET>``` to extract the features. ```<DATASET>``` must be a valid dataset string ID recognized in ```datasets/dataset.py```. By default, the recognized values are ```cifar10``` and ```cifar100```.
 
-## Step 4: Executing the attack
+## Step 3: Training the surrogate model (optional)
+
+## Step 4: Crafting the attack
+
+## Step 5: Executing the attack
 
 ## Defending Trainwreck
 Trainwreck can be __reliably defended__, the method is explained in detail in Section 7 (Discussion & defense) of the Trainwreck paper linked above. TLDR:
