@@ -9,6 +9,7 @@ from datetime import datetime
 import os
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.ini")
 RESULTS_DIR = os.path.join(SCRIPT_DIR, "results")
 RAW_RESULTS_DIR = os.path.join(RESULTS_DIR, "raw")
 ATTACK_DATA_DIR_REL = "attack_data"
@@ -25,6 +26,7 @@ EXP_POISON_RATES = [0.33, 0.5, 0.67, 0.75]
 
 # Load the data root dir from config.ini
 cfg = configparser.ConfigParser()
+cfg.read(CONFIG_PATH)
 ROOT_DATA_DIR = cfg["CONFIG"]["RootDataDir"]
 
 if not os.path.isabs(ROOT_DATA_DIR):

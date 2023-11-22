@@ -8,7 +8,13 @@ import argparse
 import sys
 from time import time
 
-from commons import EXP_POISON_RATES, EXP_ROOT_DATA_DIR, timestamp, t_readable
+from commons import (
+    EXP_POISON_RATES,
+    EXP_ROOT_DATA_DIR,
+    ROOT_DATA_DIR,
+    timestamp,
+    t_readable,
+)
 from datasets.dataset import Dataset
 from models.factory import ImageClassifierFactory
 from slurm import Slurm
@@ -82,11 +88,6 @@ else:
         ),
     )
     parser.add_argument(
-        "root_data_dir",
-        type=str,
-        help="The root data directory where torchvision looks for the datasets and stores them.",
-    )
-    parser.add_argument(
         "--batch_size",
         type=int,
         default=1,
@@ -140,7 +141,7 @@ else:
     attack_method = args.attack_method
     model_type = args.model_type
     dataset_id = args.dataset_id
-    root_data_dir = args.root_data_dir
+    root_data_dir = ROOT_DATA_DIR
     batch_size = args.batch_size
     n_epochs = args.n_epochs
     poison_rate = args.poison_rate
