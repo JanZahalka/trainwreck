@@ -5,7 +5,7 @@ Encapsulates the functionality around datasets.
 """
 import json
 import os
-import numpy as np
+
 from PIL import Image
 import torch
 from torch.utils.data import DataLoader, Subset
@@ -16,7 +16,7 @@ from commons import ATTACK_DATA_DIR
 
 class Dataset:
     """
-    The dataset class encapsulating the
+    The dataset class of Trainwreck, encapsulating all functions related to data handling
     """
 
     DATASET_INFO = {
