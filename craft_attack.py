@@ -1,13 +1,19 @@
 """
-craft_training_attack.py
+craft_attack.py
 
-Crafts a Trainwreck training attack.
+Crafts a train-time damaging adversarial attack.
 """
 
 import argparse
 from time import time
 
-from commons import EXP_POISON_RATES, EXP_ROOT_DATA_DIR, timestamp, t_readable
+from commons import (
+    EXP_POISON_RATES,
+    EXP_ROOT_DATA_DIR,
+    ROOT_DATA_DIR,
+    timestamp,
+    t_readable,
+)
 from datasets.dataset import Dataset
 from slurm import Slurm
 from trainwreck.factory import TrainwreckFactory
@@ -53,12 +59,6 @@ else:
         type=float,
         help="The rate of poisoned data within the entire training dataset "
         "(e.g., 0.1 = up to 10%% of training data can be poisoned).",
-    )
-
-    parser.add_argument(
-        "root_data_dir",
-        type=str,
-        help="The root data directory where torchvision looks for the datasets and stores them.",
     )
     parser.add_argument(
         "--config",

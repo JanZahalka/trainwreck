@@ -109,6 +109,19 @@ class ImageClassifier(AbstractBaseClass):
 
         return last_completed_epoch
 
+    def _recover_metrics(self, last_completed_epoch: int) -> tuple(dict, float):
+        """
+        Recovers the metrics record from the last completed epoch.
+        """
+        metrics_ep_path = os.path.join(
+            RAW_RESULTS_DIR, f"{self.model_id()}-ep{last_completed_epoch}.json"
+        )
+
+        with open(metrics_ep_path, "r", encoding="utf-8") as f:
+            metrics = json.loads(f.read())
+
+        return metrics
+
     def train(self, batch_size: int, force: bool) -> None:
         """
         Trains the image classifier.
@@ -141,9 +154,15 @@ class ImageClassifier(AbstractBaseClass):
 
         if last_completed_epoch is None:
             first_epoch = 0
+            metrics = []
+            top1_acc_best = 0.0
+            best_model_state_dict = None
         else:
             first_epoch = last_completed_epoch + 1
             self.load_existing_model(last_completed_epoch)
+            best_model_state_dict = copy.deepcopy(self.model.state_dict())
+            metrics = self._recover_metrics(last_completed_epoch)
+            top1_acc_best = metrics[-1]["top1"]
 
         # Establish the weights directory if it doesn't exist yet
         if not os.path.exists(self.weights_dir):
@@ -160,12 +179,6 @@ class ImageClassifier(AbstractBaseClass):
 
         # Optimizer
         optimizer = torch.optim.Adam(self.model.parameters())
-
-        # Init the metrics record and the variables for best top-1 accuracy & best model
-        # state dict tracking
-        metrics = []
-        top1_acc_best = 0.0
-        best_model_state_dict = None
 
         # Train the model
         # ---------------
@@ -222,14 +235,30 @@ class ImageClassifier(AbstractBaseClass):
                 top1_acc_best = metrics_epoch["top1"].avg
                 best_model_state_dict = copy.deepcopy(self.model.state_dict())
 
-            # Save this model's state dict
-            last_epoch_model_path = self.model_path(e)
-            torch.save(self.model.state_dict(), last_epoch_model_path)
+            # Save this model's state dict if we're not in the last epoch
+            if e != self.n_epochs - 1:
+                last_epoch_model_path = self.model_path(e)
+                torch.save(self.model.state_dict(), last_epoch_model_path)
 
             # Delete the previous model state dict, if it exists.
             prev_epoch_model_path = self.model_path(e - 1)
             if os.path.exists(prev_epoch_model_path):
                 os.remove(prev_epoch_model_path)
+
+            # Save the metrics after this step & delete the old ones if they exist
+            if e != self.n_epochs - 1:
+                metrics_epoch_path = os.path.join(
+                    RAW_RESULTS_DIR, f"{self.model_id()}-ep{e}.json"
+                )
+                with open(metrics_epoch_path, "w", encoding="utf-8") as f:
+                    f.write(json.dumps(metrics))
+
+            prev_metrics_epoch_path = os.path.join(
+                RAW_RESULTS_DIR, f"{self.model_id()}-ep{e-1}.json"
+            )
+
+            if os.path.exists(prev_metrics_epoch_path):
+                os.remove(prev_metrics_epoch_path)
 
             # Report on the epoch
             print(
