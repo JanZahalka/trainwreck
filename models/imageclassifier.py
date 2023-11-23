@@ -109,7 +109,7 @@ class ImageClassifier(AbstractBaseClass):
 
         return last_completed_epoch
 
-    def _recover_metrics(self, last_completed_epoch: int) -> tuple(dict, float):
+    def _recover_metrics(self, last_completed_epoch: int) -> dict:
         """
         Recovers the metrics record from the last completed epoch.
         """
