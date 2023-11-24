@@ -6,7 +6,7 @@ This research has been done to bolster the defenses of CV models against adversa
 
 ## Introduction
 
-Paper: J. Zahálka: Trainwreck: A damaging adversarial attack on image classifiers, arXiV preprint, 2023 (to appear, provisionally available [here](https://data.ciirc.cvut.cz/public/groups/ml/zahalka/trainwreck_paper.pdf)))
+Paper: J. Zahálka: Trainwreck: A damaging adversarial attack on image classifiers, arXiV preprint, 2023 (to appear, provisionally available [here](https://data.ciirc.cvut.cz/public/groups/ml/zahalka/trainwreck_paper.pdf))
 
 This is the code for the __Trainwreck__ adversarial attack that aims to *damage* image classifiers instead of just *manipulating* them. Trainwreck poisons a training dataset with adversarial perturbations crafted specifically to conflate the training data of similar classes together. The test dataset is left intact. This results in significant damage to performance of models trained on the poisoned data: Trainwreck shifts the poisoned training data's distribution away from the original distribution of the train/test data, so the attacked model is essentially evaluated on different data than it trained on.
 
